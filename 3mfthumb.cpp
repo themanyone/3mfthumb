@@ -18,19 +18,22 @@
 /// MA 02110-1301, USA.
 
 #include <iostream>
+#ifdef WIN32
+#include <filesystem>
+#endif
 #include "lib3mf_implicit.hpp"
 
 int main(int argc, char **argv) {
-  if (argc < 3){
+  if (argc < 2){
     std::cout << "Usage: 3mfthumb <file.3mf> <output.png>" << std::endl;
     return 1;
   }
+  // Get file names from command-line arguments
+  std::string filename = argv[1];
+  std::string thumbnailFilename = argv[2];
   try
   {
     auto wrapper = Lib3MF::CWrapper::loadLibrary();
-    // Get file names as arguments
-    std::string filename = argv[1];
-    std::string thumbnailFilename = argv[2];
     // Read the 3MF file
     Lib3MF::PModel model = wrapper->CreateModel();
     Lib3MF::PReader reader = model->QueryReader("3mf");
@@ -38,7 +41,17 @@ int main(int argc, char **argv) {
     // Get thumbnail attachment
     Lib3MF::PAttachment thumbnail;
     if (model->HasPackageThumbnailAttachment()) {
-        thumbnail = model->GetPackageThumbnailAttachment();
+      thumbnail = model->GetPackageThumbnailAttachment();
+      #ifdef WIN32
+      if (argc == 2) {
+        // Get a location Windows expects
+        std::filesystem::path thumbnailPath = std::getenv("LOCALAPPDATA");
+        thumbnailPath /= "Microsoft\\Windows\\Explorer\\" + thumbnail->GetRelationShipType();
+        std::filesystem::create_directories(thumbnailPath);
+        thumbnailPath /= std::filesystem::path(filename).stem().string() + ".thumbnail";
+        thumbnailFilename = thumbnailPath.string();
+      }
+      #endif
         // Write thumbnail to file
         thumbnail->WriteToFile(thumbnailFilename);
     }
