@@ -1,0 +1,4 @@
+[Thumbnailer Entry]
+TryExec=3mfthumb
+Exec=3mfthumb %i %o
+MimeType=model/3mf
