@@ -1,17 +1,17 @@
-#3mfthumbail
+# 3mfthumbail
 
 Extract thumbnail images from 3MF files.
 
 ![preview](preview.png)
 
-##Get it from GitHub
+## Get it from GitHub
 
 ```
 git clone https://github.com/themanyone/3mfthumb.git
 cd 3mfthumb
 ```
 
-##Install dependencies
+## Install dependencies
 
 Fedora, Centos.
 `dnf install libzip-devel lib3mf-devel zlib-devel`
@@ -22,7 +22,7 @@ Ubuntu, Debian.
 We will assume you have a build environment such as `gcc-c++` and `make`.
 
 
-##Build
+## Build
 
 ```make
 make install
@@ -32,7 +32,7 @@ Remove generic thumbnails.
 
 `rm -rf ~/.cache/thumbnails`
 
-##Developer logic
+## Developer logic
 
 The current version of the Lib3MF API uses the lib3mf_implicit.hpp header file instead of Lib3MF_Resources.hpp. This newer API provides a more simplified interface for working with the Lib3MF library.
 
@@ -41,7 +41,7 @@ This code uses the CWrapper::loadLibrary() method to load the Lib3MF library and
 The `Makefile` uses `pkg-config --cflags --libs lib3mf` to obtain the compiler flags to use. If for some reason your system does not have pkg-config, you might be able to substitute these into the `Makefile`.
 `-I/usr/include/lib3mf -l3mf -lzip -lz`
 
-##Issues
+## Issues
 
 We are new to C++ development, so there are bound to be some problems. Discuss issues on the [GitHub issue tracker](https://github.com/themanyone/3mfthumb/issues).
 
