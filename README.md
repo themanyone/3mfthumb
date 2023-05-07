@@ -28,7 +28,7 @@ We will assume you have a build environment such as `gcc-c++` and `make`.
 
 ```
 make
-make install
+make install #do not use sudo
 ```
 
 Configure your file manager preferences to show previews for files > 1MB.
@@ -44,16 +44,16 @@ The `Makefile` uses `pkg-config --cflags --libs lib3mf` to obtain the compiler f
 
 ## Cross compiling to Windows
 
-To cross compile to Windows, you must first install dependencies. Use 
+To build for Windows, first install dependencies. Use 
 the package manager to install `mingw64-gcc-g++`, `mingw64-zlib`, and 
-`mingw64-libzip`. Now we need the `lib3mf.dll`. We got ours from https://github.com/3MFConsortium/lib3mf/releases like so.
+`mingw64-libzip`. Now we need the `lib3mf.dll`, available from https://github.com/3MFConsortium/lib3mf/releases like so.
 
 ```
 wget https://github.com/3MFConsortium/lib3mf/releases/download/v2.2.0/lib3mf_sdk_v2.2.0.zip
 unzip lib3mf_sdk_v2.2.0.zip
 ```
 
-Now we can use `mingw64-make` to build the windows executable, `emfthumb.exe`. Set LIBS to the location of the extracted lib3mf/Lib dir, which should already contain a precompiled library `lib3mf.dll`.
+Now use `mingw64-make` to build the windows executable, `emfthumb.exe`. Set LIBS to the location of the extracted lib3mf/Lib dir, which should already contain a precompiled library `lib3mf.dll`.
 
 ```
 LIBS=-L/home/k/Downloads/src/lib3mf/Lib mingw64-make
