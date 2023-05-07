@@ -1,4 +1,4 @@
-# 3mfthumbail
+# 3mfthumb
 
 Extract thumbnail images from 3MF files and display them in file managers.
 
