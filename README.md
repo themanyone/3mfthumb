@@ -24,13 +24,10 @@ We will assume you have a build environment such as `gcc-c++` and `make`.
 
 ## Build
 
-```make
+```
+make
 make install
 ```
-
-Remove generic thumbnails.
-
-`rm -rf ~/.cache/thumbnails`
 
 ## Developer logic
 
@@ -43,6 +40,7 @@ The `Makefile` uses `pkg-config --cflags --libs lib3mf` to obtain the compiler f
 
 ## Issues
 
-We are new to C++ development, so there are bound to be some problems. Discuss issues on the [GitHub issue tracker](https://github.com/themanyone/3mfthumb/issues).
+We are new to C++ development, so there are bound to be some problems. 
+Discuss issues on the [GitHub issue tracker](https://github.com/themanyone/3mfthumb/issues).
 
-Copyright (C) 2023 Henry Kroll III, www.thenerdshow.com. See LICENSE for details.
+Copyright (C) 2023 Henry Kroll III, www.thenerdshow.com. See [LICENSE](LICENSE) for details.
