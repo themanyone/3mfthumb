@@ -21,8 +21,10 @@ Fedora, Centos.
 Ubuntu, Debian.
 `dpkg -i libzip-dev lib3mf-dev zlib1g-dev`
 
-We will assume you have a build environment such as `gcc-c++` and `make`.
+Arch
+`pacman -S libzip lib3mf zlib1g`
 
+We will assume you have a build environment such as `gcc-c++`, `pkg-config` and `make`.
 
 ## Build
 

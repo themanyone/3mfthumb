@@ -12,6 +12,6 @@ install:
 	ln -sf "$(shell pwd)/3mfthumb" ~/.local/bin/
 	cp -lf 3mf.thumbnailer /home/k/.local/share/thumbnailers/
 	rm -rf ~/.cache/thumbnails
-	
+
 clean:
 	rm -f *.o ${NAME}

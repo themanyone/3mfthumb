@@ -21,7 +21,7 @@
 #ifdef WIN32
 #include <filesystem>
 #endif
-#include "lib3mf_implicit.hpp"
+#include <Bindings/Cpp/lib3mf_implicit.hpp>
 
 int main(int argc, char **argv) {
   if (argc < 2){
@@ -52,8 +52,8 @@ int main(int argc, char **argv) {
         thumbnailFilename = thumbnailPath.string();
       }
       #endif
-        // Write thumbnail to file
-        thumbnail->WriteToFile(thumbnailFilename);
+      // Write thumbnail to file
+      thumbnail->WriteToFile(thumbnailFilename);
     }
   }
   catch (std::exception &e)
@@ -61,6 +61,5 @@ int main(int argc, char **argv) {
     std::cout << e.what() << std::endl;
     return 1;
   }
-  
   return 0;
 }
