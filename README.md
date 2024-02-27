@@ -30,10 +30,12 @@ We will assume you have a build environment such as `gcc-c++`, `pkg-config` and 
 
 ```
 make
-make install #do not use sudo
+make install #sudo is not necessary for one user
 ```
 
 Configure your file manager preferences to show previews for files > 1MB.
+
+`make uninstall` to remove these components if no longer needed.
 
 ## Developer logic
 
@@ -78,4 +80,4 @@ If it works, when you navigate to a folder containing a .3mf file, Windows shoul
 We are new to C++ development, so there are bound to be some problems. Image previews have not been tested on Windows yet. But we're working on it.
 Discuss issues on the [GitHub issue tracker](https://github.com/themanyone/3mfthumb/issues).
 
-Copyright (C) 2023 Henry Kroll III, www.thenerdshow.com. See [LICENSE](LICENSE) for details.
+Copyright (C) 2024x Henry Kroll III, www.thenerdshow.com. See [LICENSE](LICENSE) for details.
