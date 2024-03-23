@@ -21,7 +21,7 @@
 #ifdef WIN32
 #include <filesystem>
 #endif
-#include <Bindings/Cpp/lib3mf_implicit.hpp>
+#include <lib3mf_implicit.hpp>
 
 int main(int argc, char **argv) {
   if (argc < 2){
