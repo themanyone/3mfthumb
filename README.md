@@ -30,21 +30,31 @@ We will assume you have a build environment such as `gcc-c++`, `pkg-config` and 
 
 ```
 make
-make install #sudo is not necessary for one user
+make install
 ```
 
-Configure your file manager preferences to show previews for files > 1MB.
+*Multi-user environments.* Please do not use `sudo make install` unless the system has multiple graphical desktop users. In that case, you may edit `Makefile` to change `DESTDIR` to `INSTALL_ROOT`. And manually remove old thumbnails for each user: `rm -rf $(HOME)/.cache/thumbnails/*`.
+
+Configure file manager preferences to show previews for files > 1MB.
 
 `make uninstall` to remove these components if no longer needed.
 
 ## Developer logic
 
-The current version of the Lib3MF API uses the lib3mf_implicit.hpp header file instead of Lib3MF_Resources.hpp. This newer API provides a more simplified interface for working with the Lib3MF library.
+The current version of the Lib3MF API uses the `lib3mf_implicit.hpp` header file instead of Lib3MF_Resources.hpp. This newer API provides a more simplified interface for working with the Lib3MF library.
 
 This code uses the CWrapper::loadLibrary() method to load the Lib3MF library and create a new model. It then uses the QueryReader() method to create a new reader for the 3MF file format and read the model from a file using ReadFromFile(). Finally, we use the HasPackageThumbnailAttachment() and GetPackageThumbnailAttachment() methods to retrieve the thumbnail attachment and write it to a file using WriteToFile().
 
-The `Makefile` uses `pkg-config --cflags --libs lib3mf` to obtain the compiler flags to use. If for some reason your system does not have pkg-config, you might be able to substitute these into the `Makefile`.
-`-I/usr/include/lib3mf -l3mf -lzip -lz`
+## Build problems
+
+The `Makefile` uses `pkg-config --cflags --libs lib3mf` to obtain the compiler flags to use. In particular, the location of `lib3mf_implicit.hpp`. If for some reason your system does not have pkg-config, you might be able to substitute these into the `Makefile`.
+
+`BUILD_CFLAGS=-I/usr/include/lib3mf`
+`LDFLAGS:=-l3mf -lzip -lz`
+
+On Arch, `lib3mf-dev` may not be properly installed. The build script forgot to create simlinks to the C bindings. It should be filed as a bug. A command such as th following might work around the issue.
+
+`ln -s /usr/include/lib3mf/Bindings/Cpp/* /usr/include/lib3mf/`
 
 ## Cross compiling to Windows
 
@@ -63,14 +73,16 @@ Now use `mingw64-make` to build the windows executable, `emfthumb.exe`. Set LIBS
 LIBS=-L/home/k/Downloads/src/lib3mf/Lib mingw64-make
 ```
 
-Now copy the resulting `3mfthumb.exe` along with `lib3mf.dll` to the Windows machine.
+## Windows install
+
+Copy `3mfthumb.exe` along with `lib3mf.dll` to somewhere on the Windows machine. Maybe in C:\Program Files
 
 In theory, we can use `regedit` to designate 3mfthumb.exe as the preferred handler to generate image previews for .3mf files. ChatGPT suggested something similar to the following. If it doesn't work, you can ask ChatGPT or Bing to fix it up.
 
 1. Open the Registry Editor by typing "regedit" in the Windows search bar and selecting "Registry Editor".
 2. Navigate to HKEY_CLASSES_ROOT\.3mf.
 3. Right-click on something like "ThumbnailHandler" and select "Modify".
-4. Set the value data to the full path of 3mfthumb.exe (e.g. "C:\path\to\3mfthumb.exe") and click "OK".
+4. Set the value data to the full path of 3mfthumb.exe (e.g. "C:\Program Files\3mfthumb.exe") and click "OK".
 5. Close the Registry Editor.
 
 If it works, when you navigate to a folder containing a .3mf file, Windows should generate a thumbnail using 3mfthumb.exe.
@@ -80,4 +92,4 @@ If it works, when you navigate to a folder containing a .3mf file, Windows shoul
 We are new to C++ development, so there are bound to be some problems. Image previews have not been tested on Windows yet. But we're working on it.
 Discuss issues on the [GitHub issue tracker](https://github.com/themanyone/3mfthumb/issues).
 
-Copyright (C) 2024x Henry Kroll III, www.thenerdshow.com. See [LICENSE](LICENSE) for details.
+Copyright (C) 2024 Henry Kroll III, www.thenerdshow.com. See [LICENSE](LICENSE) for details.
