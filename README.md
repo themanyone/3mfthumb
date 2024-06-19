@@ -33,6 +33,8 @@ make
 make install
 ```
 
+Now log out of the desktop session (or reboot).
+
 *Multi-user environments.* Please do not use `sudo make install` unless the system has multiple graphical desktop users. In that case, you may edit `Makefile` to change `DESTDIR` to `INSTALL_ROOT`. And manually remove old thumbnails for each user: `rm -rf $(HOME)/.cache/thumbnails/*`.
 
 Configure file manager preferences to show previews for files > 1MB.
