@@ -94,4 +94,12 @@ If it works, when you navigate to a folder containing a .3mf file, Windows shoul
 We are new to C++ development, so there are bound to be some problems. Image previews have not been tested on Windows yet. But we're working on it.
 Discuss issues on the [GitHub issue tracker](https://github.com/themanyone/3mfthumb/issues).
 
+## Author's links
+
+    - GitHub https://github.com/themanyone
+    - YouTube https://www.youtube.com/themanyone
+    - Mastodon https://mastodon.social/@themanyone
+    - Linkedin https://www.linkedin.com/in/henry-kroll-iii-93860426/
+    - [TheNerdShow.com](http://thenerdshow.com/)
+
 Copyright (C) 2024 Henry Kroll III, www.thenerdshow.com. See [LICENSE](LICENSE) for details.
