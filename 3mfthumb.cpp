@@ -24,7 +24,7 @@
 #include <lib3mf_implicit.hpp>
 
 int main(int argc, char **argv) {
-  if (argc < 2){
+  if (argc < 3){
     std::cout << "Usage: 3mfthumb <file.3mf> <output.png>" << std::endl;
     return 1;
   }
