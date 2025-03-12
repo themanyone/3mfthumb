@@ -13,7 +13,7 @@ git clone https://github.com/themanyone/3mfthumb.git
 cd 3mfthumb
 ```
 
-## Install dependencies
+## Linux dependencies
 
 Fedora, Centos.
 `dnf install libzip-devel lib3mf-devel zlib-devel`
@@ -26,7 +26,7 @@ Arch
 
 We will assume you have a build environment such as `gcc-c++`, `pkg-config` and `make`.
 
-## Build
+## Linux Build
 
 ```
 make
@@ -60,19 +60,19 @@ On Arch, `lib3mf-dev` may not be properly installed. The build script forgot to 
 
 ## Cross compiling to Windows
 
-To build for Windows, first install dependencies. Use 
-the package manager to install `mingw64-gcc-g++`, `mingw64-zlib`, and 
+To build Windows executable on Linux system, first install dependencies. Use 
+the distro's package manager to install `mingw64-gcc-g++`, `mingw64-zlib`, and 
 `mingw64-libzip`. Now we need the `lib3mf.dll`, available from https://github.com/3MFConsortium/lib3mf/releases like so.
 
 ```
-wget https://github.com/3MFConsortium/lib3mf/releases/download/v2.2.0/lib3mf_sdk_v2.2.0.zip
-unzip lib3mf_sdk_v2.2.0.zip
+wget https://github.com/3MFConsortium/lib3mf/releases/download/v2.4.1/lib3mf_sdk_v2.4.1.zip
+unzip lib3mf_sdk*
 ```
 
 Now use `mingw64-make` to build the windows executable, `emfthumb.exe`. Set LIBS to the location of the extracted lib3mf/Lib dir, which should already contain a precompiled library `lib3mf.dll`.
 
 ```
-LIBS=-L/home/k/Downloads/src/lib3mf/Lib mingw64-make
+LIBS=-L/home/MyUser/Downloads/src/lib3mf/Lib mingw64-make
 ```
 
 ## Windows install
@@ -91,7 +91,7 @@ If it works, when you navigate to a folder containing a .3mf file, Windows shoul
 
 ## Issues
 
-We are new to C++ development, so there are bound to be some problems. Image previews have not been tested on Windows yet. But we're working on it.
+We are new to C++ development, so there are bound to be some problems. Due to budget and time constraints, image previews have not been tested on Windows yet. But we're working on it.
 Discuss issues on the [GitHub issue tracker](https://github.com/themanyone/3mfthumb/issues).
 
 ## Author's links
@@ -102,4 +102,4 @@ Discuss issues on the [GitHub issue tracker](https://github.com/themanyone/3mfth
     - Linkedin https://www.linkedin.com/in/henry-kroll-iii-93860426/
     - [TheNerdShow.com](http://thenerdshow.com/)
 
-Copyright (C) 2024 Henry Kroll III, www.thenerdshow.com. See [LICENSE](LICENSE) for details.
+Copyright (C) 2024-2025 Henry Kroll III, www.thenerdshow.com. See [LICENSE](LICENSE) for details.
