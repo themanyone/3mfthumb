@@ -9,7 +9,7 @@ DESTDIR=$(INSTALL_HOME)
 SRCS=$(wildcard *.cpp)
 OBJS=$(SRCS:.cpp=.o)
 CFLAGS?=-g -Wall -O2
-BUILD_CFLAGS=$(shell pkg-config --cflags lib3mf)
+BUILD_CFLAGS:=$(shell pkg-config --cflags lib3mf)
 LDFLAGS:=$(shell pkg-config --libs lib3mf)
 ifeq ($(shell whoami), root)
     DESTDIR:=$(INSTALL_ROOT)
