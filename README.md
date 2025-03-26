@@ -19,12 +19,12 @@ Fedora, Centos.
 `dnf install libzip-devel lib3mf-devel zlib-devel`
 
 Ubuntu, Debian.
-`dpkg -i libzip-dev lib3mf-dev zlib1g-dev`
+`apt install libzip-dev lib3mf-dev zlib1g-dev`
 
 Arch
 `pacman -S libzip lib3mf zlib1g`
 
-We will assume you have a build environment such as `gcc-c++`, `pkg-config` and `make`.
+We will assume a GNU build environment with tools like `gcc-c++`, `pkg-config` and `make`.
 
 ## Linux Build
 
@@ -33,25 +33,26 @@ make
 make install
 ```
 
-Now log out of the desktop session (or reboot).
+*Multi-user environments.* Please do not use `sudo make install` unless the system has multiple graphical desktop users. In that case, you may edit `Makefile` to change `DESTDIR` to `INSTALL_ROOT`. And manually remove old thumbnails for each user: `rm -rf $HOME/.cache/thumbnails/*`.
 
-*Multi-user environments.* Please do not use `sudo make install` unless the system has multiple graphical desktop users. In that case, you may edit `Makefile` to change `DESTDIR` to `INSTALL_ROOT`. And manually remove old thumbnails for each user: `rm -rf $(HOME)/.cache/thumbnails/*`.
+Previews typically work after this. If not, log out of the desktop session (or reboot).
 
-Configure file manager preferences to show previews for files > 1MB.
+Don't forget to configure file manager preferences to show previews for files > 1MB.
 
 `make uninstall` to remove these components if no longer needed.
 
 ## Developer logic
 
-The current version of the Lib3MF API uses the `lib3mf_implicit.hpp` header file instead of Lib3MF_Resources.hpp. This newer API provides a more simplified interface for working with the Lib3MF library.
+The current version of the [Lib3MF](https://3mf.io/) API uses the `lib3mf_implicit.hpp` header file instead of Lib3MF_Resources.hpp. Available from the [3MF SDK](https://github.com/3MFConsortium/lib3mf/releases), this newer API provides a more simplified interface for working with the Lib3MF library. If installed in a different place, you can use the `updatedb` and `locate` commands to find it.
 
-This code uses the CWrapper::loadLibrary() method to load the Lib3MF library and create a new model. It then uses the QueryReader() method to create a new reader for the 3MF file format and read the model from a file using ReadFromFile(). Finally, we use the HasPackageThumbnailAttachment() and GetPackageThumbnailAttachment() methods to retrieve the thumbnail attachment and write it to a file using WriteToFile().
+This code employs the `CWrapper::loadLibrary()` method to load the Lib3MF library and create a new model. It then uses the `QueryReader()` method to create a new reader for the 3MF file format and read the model from a file using `ReadFromFile()`. Finally, we query the `HasPackageThumbnailAttachment()` and `GetPackageThumbnailAttachment()` methods to retrieve the thumbnail attachment and write it to a file using `WriteToFile()`.
 
 ## Build problems
 
 The `Makefile` uses `pkg-config --cflags --libs lib3mf` to obtain the compiler flags to use. In particular, the location of `lib3mf_implicit.hpp`. If for some reason your system does not have pkg-config, you might be able to substitute these into the `Makefile`.
 
-`BUILD_CFLAGS=-I/usr/include/lib3mf`
+`BUILD_CFLAGS:=-I/usr/include/lib3mf`
+
 `LDFLAGS:=-l3mf -lzip -lz`
 
 On Arch, `lib3mf-dev` may not be properly installed. The build script forgot to create simlinks to the C bindings. It should be filed as a bug. A command such as th following might work around the issue.
@@ -69,10 +70,10 @@ wget https://github.com/3MFConsortium/lib3mf/releases/download/v2.4.1/lib3mf_sdk
 unzip lib3mf_sdk*
 ```
 
-Now use `mingw64-make` to build the windows executable, `emfthumb.exe`. Set LIBS to the location of the extracted lib3mf/Lib dir, which should already contain a precompiled library `lib3mf.dll`.
+Now use `mingw64-make` to build the windows executable, `3mfthumb.exe`. Set LIBS to the location of the extracted lib3mf/Lib dir, which should already contain a precompiled library `lib3mf.dll`.
 
 ```
-LIBS=-L/home/MyUser/Downloads/src/lib3mf/Lib mingw64-make
+LIBS=-L$HOME/Downloads/src/lib3mf/Lib mingw64-make
 ```
 
 ## Windows install
@@ -91,7 +92,7 @@ If it works, when you navigate to a folder containing a .3mf file, Windows shoul
 
 ## Issues
 
-We are new to C++ development, so there are bound to be some problems. Due to budget and time constraints, image previews have not been tested on Windows yet. But we're working on it.
+Due to budget and time constraints, image previews have not been tested on Windows yet. But we're working on it.
 Discuss issues on the [GitHub issue tracker](https://github.com/themanyone/3mfthumb/issues).
 
 ## Author's links
