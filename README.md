@@ -16,7 +16,7 @@ cd 3mfthumb
 ## Linux dependencies
 
 Fedora, Centos.
-`dnf install libzip-devel lib3mf-devel zlib-devel`
+`dnf install libzip-devel lib3mf-devel zlib-ng-devel`
 
 Ubuntu, Debian.
 `apt install libzip-dev lib3mf-dev zlib1g-dev`
@@ -33,7 +33,11 @@ make
 make install
 ```
 
-*Multi-user environments.* Please do not use `sudo make install` unless the system has multiple graphical desktop users. In that case, you may edit `Makefile` to change `DESTDIR` to `INSTALL_ROOT`. And manually remove old thumbnails for each user: `rm -rf $HOME/.cache/thumbnails/*`.
+*Multi-user environments.* Please do not use `sudo make install` unless the system has 
+multiple graphical desktop users. In that case, you may edit `Makefile` to change `DESTDIR` 
+to `INSTALL_ROOT`. And manually remove old thumbnails for each user:
+
+`rm -rf $HOME/.cache/thumbnails/*`
 
 Previews typically work after this. If not, log out of the desktop session (or reboot).
 
@@ -43,9 +47,17 @@ Don't forget to configure file manager preferences to show previews for files > 
 
 ## Developer logic
 
-The current version of the [Lib3MF](https://3mf.io/) API uses the `lib3mf_implicit.hpp` header file instead of Lib3MF_Resources.hpp. Available from the [3MF SDK](https://github.com/3MFConsortium/lib3mf/releases), this newer API provides a more simplified interface for working with the Lib3MF library. If installed in a different place, you can use the `updatedb` and `locate` commands to find it.
+The current version of the [Lib3MF](https://3mf.io/) API uses the `lib3mf_implicit.hpp` 
+header file instead of Lib3MF_Resources.hpp. Available from the 
+[3MF SDK](https://github.com/3MFConsortium/lib3mf/releases), this newer API provides a 
+simplified interface for working with the Lib3MF library. If installed in a 
+different place, you can use the `updatedb` and `locate` commands to find it.
 
-This code employs the `CWrapper::loadLibrary()` method to load the Lib3MF library and create a new model. It then uses the `QueryReader()` method to create a new reader for the 3MF file format and read the model from a file using `ReadFromFile()`. Finally, we query the `HasPackageThumbnailAttachment()` and `GetPackageThumbnailAttachment()` methods to retrieve the thumbnail attachment and write it to a file using `WriteToFile()`.
+This code employs the `CWrapper::loadLibrary()` method to load the Lib3MF library and create a 
+new model. It then uses the `QueryReader()` method to create a new reader for the 3MF file 
+format and read the model from a file using `ReadFromFile()`. Finally, we query the 
+`HasPackageThumbnailAttachment()` and `GetPackageThumbnailAttachment()` methods to retrieve the thumbnail 
+attachment and write it to a file using `WriteToFile()`.
 
 ## Build problems
 
@@ -59,21 +71,33 @@ On Arch, `lib3mf-dev` may not be properly installed. The build script forgot to 
 
 `ln -s /usr/include/lib3mf/Bindings/Cpp/* /usr/include/lib3mf/`
 
-## Cross compiling to Windows
+## Using [lib3mf_sdk](https://github.com/3MFConsortium/lib3mf/)
 
-To build Windows executable on Linux system, first install dependencies. Use 
-the distro's package manager to install `mingw64-gcc-g++`, `mingw64-zlib`, and 
-`mingw64-libzip`. Now we need the `lib3mf.dll`, available from https://github.com/3MFConsortium/lib3mf/releases like so.
+If it stubbornly refuses to build using the distro-provided packages, install zlib and libzip, or make sure their development libraries are installed. Then get the SDK.
 
 ```
+cd #3mfthumb src dir
 wget https://github.com/3MFConsortium/lib3mf/releases/download/v2.4.1/lib3mf_sdk_v2.4.1.zip
 unzip lib3mf_sdk*
 ```
 
+Now we can build 3mfthumb
+
+```
+make CFLAGS=-I./lib3mf_sdk/Bindings/Cpp LDFLAGS="-l3mf -lzip -lz -L./lib3mf_sdk/Lib"
+```
+
+## Cross compiling to Windows
+
+To build Windows executable on Linux system, Use 
+the distro's package manager to install `mingw64-gcc-g++`, `mingw64-zlib`, and 
+`mingw64-libzip`. Now we need the `lib3mf.dll`, available from the above SDK download.
+
 Now use `mingw64-make` to build the windows executable, `3mfthumb.exe`. Set LIBS to the location of the extracted lib3mf/Lib dir, which should already contain a precompiled library `lib3mf.dll`.
 
 ```
-LIBS=-L$HOME/Downloads/src/lib3mf/Lib mingw64-make
+mingw64-env #important!
+mingw64-make CFLAGS=-I./lib3mf_sdk/Bindings/Cpp LDFLAGS="-l3mf -lzip -lz -L./lib3mf_sdk/Lib"
 ```
 
 ## Windows install
@@ -90,7 +114,14 @@ In theory, we can use `regedit` to designate 3mfthumb.exe as the preferred handl
 
 If it works, when you navigate to a folder containing a .3mf file, Windows should generate a thumbnail using 3mfthumb.exe.
 
-## Issues
+## Known Issues
+
+[Kubuntu thumbnailer commands work, but nautilus fails to genereate](https://duckduckgo.com/q=Kubuntu+sandboxing+thumbnailers+with+bubblewrap) ...
+
+Try (re)installing ffmpegthumbnailer. After that, the system might be configured to 
+show thumbnails, since this topic has generated a lot of discussion. Then again.
+
+`rm -rf $HOME/.cache/thumbnails/*`
 
 Due to budget and time constraints, image previews have not been tested on Windows yet. But we're working on it.
 Discuss issues on the [GitHub issue tracker](https://github.com/themanyone/3mfthumb/issues).
