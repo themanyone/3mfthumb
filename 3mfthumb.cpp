@@ -18,11 +18,13 @@
 /// MA 02110-1301, USA.
 
 #include <iostream>
-#ifdef WIN32
-#include <filesystem>
-#endif
 #include <lib3mf_implicit.hpp>
-
+#if __cplusplus >= 201703L // Check if C++17 or later is supported
+#include <filesystem>
+namespace fs = std::filesystem;
+#else
+#error "After git commit c22ea6b, C++17 or later is required for this code."
+#endif
 int main(int argc, char **argv) {
   if (argc < 3){
     std::cout << "Usage: 3mfthumb <file.3mf> <output.png>" << std::endl;
