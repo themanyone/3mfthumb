@@ -116,7 +116,7 @@ If it works, when you navigate to a folder containing a .3mf file, Windows shoul
 
 ## Known Issues
 
-[Kubuntu thumbnailer commands work, but nautilus fails to genereate](https://duckduckgo.com/q=Kubuntu+sandboxing+thumbnailers+with+bubblewrap) ...
+[Kubuntu thumbnailer commands work, but nautilus fails to genereate](https://duckduckgo.com/?q=Kubuntu+sandboxing+thumbnailers+with+bubblewrap) ...
 
 Try (re)installing ffmpegthumbnailer. After that, the system might be configured to 
 show thumbnails, since this topic has generated a lot of discussion. Then again.
