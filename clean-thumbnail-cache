@@ -1,0 +1,12 @@
+#!/bin/bash
+
+#set -xv
+
+MD5SUM=$(echo -n file://$PWD/$1 | md5sum  | awk '{ print $1 }')
+
+find $HOME/.cache/thumbnails -name $MD5SUM.png -exec rm -v {} \; | grep "."
+
+if [ $? != 0 ]
+then
+	echo thumbnail not found
+fi

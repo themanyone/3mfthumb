@@ -1,4 +1,4 @@
 [Thumbnailer Entry]
-TryExec=3mfthumb
-Exec=3mfthumb %i %o
-MimeType=model/3mf
+TryExec=/usr/bin/3mf-thumbnailer-script
+Exec=/usr/bin/3mf-thumbnailer-script %u %s %o
+MimeType=application/vnd.ms-3mfdocument;

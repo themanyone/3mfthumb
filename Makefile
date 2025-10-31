@@ -5,7 +5,7 @@ INSTALL_HOME=$(HOME)/.local
 INSTALL_ROOT=$(PREFIX)/local
 DESTDIR=$(INSTALL_HOME)
 .SUFFIXES:.cpp .o
-.PHONY: install clean
+.PHONY: install clean clean-cache
 SRCS=$(wildcard *.cpp)
 OBJS=$(SRCS:.cpp=.o)
 CFLAGS?=-g -Wall -O2
@@ -27,6 +27,9 @@ install:
 	$(info Installing to $(DESTDIR))
 	install -Ds $(NAME) $(DESTDIR)/bin/
 	install -D -m 644 3mf.thumbnailer $(DESTDIR)/share/thumbnailers/
+	install -D -m 644 3mf-thumbnailer-script $(DESTDIR)/bin/
+
+clean-cache:
 	$(RM) -rf $(HOME)/.cache/thumbnails/*
 
 uninstall:

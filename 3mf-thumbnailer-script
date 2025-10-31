@@ -1,0 +1,7 @@
+#!/bin/bash
+
+in_file="${1#file://}"
+size="$2"
+out_file="$3"
+
+3mfthumb $in_file $out_file
