@@ -102,17 +102,46 @@ mingw64-make CFLAGS=-I./lib3mf_sdk/Bindings/Cpp LDFLAGS="-l3mf -lzip -lz -L./lib
 
 ## Windows install
 
-Copy `3mfthumb.exe` along with `lib3mf.dll` to somewhere on the Windows machine. Maybe in C:\Program Files
+`3mfthumb.exe` itself is just a command-line converter (`3mfthumb file.3mf out.png`)
+-- it's not something Windows Explorer can call on its own. Explorer only
+generates thumbnails through a registered in-process COM object that
+implements `IThumbnailProvider`; there's no "run this exe and read its
+output" mechanism the way there is for `pcmanfm`/`nautilus` on Linux. (An
+earlier version of this README suggested pointing a `ThumbnailHandler`
+registry value straight at `3mfthumb.exe` -- that doesn't work, since that
+registry slot expects a CLSID, not an executable path.)
 
-In theory, we can use `regedit` to designate 3mfthumb.exe as the preferred handler to generate image previews for .3mf files. ChatGPT suggested something similar to the following. If it doesn't work, you can ask ChatGPT or Bing to fix it up.
+The [`win-shellext/`](win-shellext/) directory has the real fix: a small
+COM shell extension DLL that reuses the same lib3mf extraction logic and
+hands Explorer a proper thumbnail bitmap. See
+[`win-shellext/README.md`](win-shellext/README.md) for build and install
+instructions. Summary:
 
-1. Open the Registry Editor by typing "regedit" in the Windows search bar and selecting "Registry Editor".
-2. Navigate to HKEY_CLASSES_ROOT\.3mf.
-3. Right-click on something like "ThumbnailHandler" and select "Modify".
-4. Set the value data to the full path of 3mfthumb.exe (e.g. "C:\Program Files\3mfthumb.exe") and click "OK".
-5. Close the Registry Editor.
+```
+# cross-compile from Linux with mingw-w64
+sudo apt install g++-mingw-w64-x86-64-win32
+cd win-shellext
+x86_64-w64-mingw32-g++ -std=c++17 -Wall -O2 \
+  -I../lib3mf_sdk/lib3mf_sdk/Bindings/CppDynamic \
+  -c ThumbnailProvider.cpp -o ThumbnailProvider.o
+x86_64-w64-mingw32-g++ -shared -o 3mfthumbprovider.dll \
+  ThumbnailProvider.o ThumbnailProvider.def \
+  -lshlwapi -lole32 -loleaut32 -luuid -lgdi32 -lwindowscodecs \
+  -static-libgcc -static-libstdc++
+```
 
-If it works, when you navigate to a folder containing a .3mf file, Windows should generate a thumbnail using 3mfthumb.exe.
+Then on the Windows machine, copy `3mfthumbprovider.dll` and `lib3mf.dll`
+(from `lib3mf_sdk/lib3mf_sdk/Bin/`) to wherever you want them to live, and
+register:
+
+```
+regsvr32 3mfthumbprovider.dll
+```
+
+This registers under `HKEY_CURRENT_USER\Software\Classes`, so no
+administrator rights are needed. `regsvr32 /u 3mfthumbprovider.dll` undoes
+it. Verified working against real Windows Explorer (via
+`IShellItemImageFactory::GetImage`, the same API Explorer itself uses).
 
 ## Known Issues
 
@@ -123,7 +152,9 @@ show thumbnails, since this topic has generated a lot of discussion. Then again.
 
 `rm -rf $HOME/.cache/thumbnails/*`
 
-Due to budget and time constraints, image previews have not been tested on Windows yet. But we're working on it.
+Windows Explorer thumbnails now work via the COM shell extension in
+[`win-shellext/`](win-shellext/) -- see the Windows install section above.
+
 Discuss issues on the [GitHub issue tracker](https://github.com/themanyone/3mfthumb/issues).
 
 ## Author's links
@@ -135,3 +166,5 @@ Discuss issues on the [GitHub issue tracker](https://github.com/themanyone/3mfth
     - [TheNerdShow.com](http://thenerdshow.com/)
 
 Copyright (C) 2024-2025 Henry Kroll III, www.thenerdshow.com. See [LICENSE](LICENSE) for details.
+
+Additions adding full Windows support by Don Eisele, 2026, https://toysmakeuspowerful.com/

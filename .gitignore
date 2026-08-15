@@ -1,0 +1,7 @@
+*.o
+*.exe
+*.dll
+build-win/
+lib3mf_sdk/
+lib3mf_sdk_v*.zip
+CLAUDE.md
