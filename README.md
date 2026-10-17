@@ -4,7 +4,10 @@ Show 3MF previews in file managers: use the embedded thumbnail image, or render 
 
 Preview images are great. As .3mf is supposed to be the universal 3D Printing standard, and adoption is expected to be rapid, we should be able to see embedded thumbnail image previews for them in file managers like `pcmanfm`, `nautilus`, or even Windows `explorer`.
 
-![preview](preview.png)
+<figure align="center">
+<img src="preview.png">
+<figcaption><em>Figure 1: Bungee Hook.3mf <a href="https://www.printables.com/model/1361093-adjustable-bungee-hook">available on Printables.com</a></em></figcaptoin>
+</figure>
 
 ## Changelog
 

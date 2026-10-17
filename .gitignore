@@ -11,3 +11,4 @@ debian/.debhelper/
 debian/files
 debian/*.substvars
 *.deb
+debugging
