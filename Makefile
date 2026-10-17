@@ -1,21 +1,20 @@
 NAME=3mfthumb
 SHELL=/bin/sh
 PREFIX?=/usr
-INSTALL_HOME=$(HOME)/.local
-INSTALL_ROOT=$(PREFIX)/local
-DESTDIR=$(INSTALL_HOME)
 .SUFFIXES:.cpp .o
 .PHONY: install uninstall clean rpm deb
 SRCS=$(wildcard *.cpp)
 OBJS=$(SRCS:.cpp=.o)
 CFLAGS?=-g -Wall -O2 -std=c++17
-BUILD_CFLAGS:=$(shell pkg-config --cflags lib3mf)
-LDFLAGS:=$(shell pkg-config --libs lib3mf)
-ifeq ($(shell whoami), root)
-    DESTDIR:=$(INSTALL_ROOT)
-endif
+BUILD_CFLAGS:=$(shell pkg-config --cflags lib3mf cairo)
+LDFLAGS:=$(shell pkg-config --libs lib3mf cairo)
 
 all: $(NAME)
+
+# Install under PREFIX (root, or an explicit PREFIX=...): that is the only
+# place the GNOME thumbnail sandbox can reach. A home-directory install is
+# refused, see the install/uninstall targets.
+DESTDIRS=$(PREFIX)
 
 %.o: %.cpp
 	$(CXX) $(BUILD_CFLAGS) $(CFLAGS) -c $< -o $@
@@ -23,15 +22,78 @@ all: $(NAME)
 $(NAME): $(OBJS)
 	$(CXX) $(CFLAGS) $(NAME).o -o $(NAME) $(LDFLAGS)
 
+# Nautilus 43+ ignores $XDG_DATA_HOME and only reads thumbnailer entries from
+# /usr/share/thumbnailers. GNOME's thumbnail sandbox also mounts only /usr
+# (plus /proc and /dev) and runs the Exec program by bare name through the
+# caller's PATH, so an install under ~/.local or /usr/local can never be
+# found: the binary has to live in /usr/bin.
+SYSTEM_THUMBNAILER=$(PREFIX)/share/thumbnailers/3mf.thumbnailer
+
+# Restart Nautilus so it re-reads the thumbnailer entries; it only does so at
+# startup. `nautilus -q` needs the desktop user's session bus, and sudo
+# replaces that with its own, so the whole recipe runs in one shell: it works
+# as the invoking user (SUDO_USER) through setpriv, and says so when
+# it cannot, because a root shell has no session to act for.
+NAUTILUS_RESTART = \
+	me=$${SUDO_USER:-$$(id -un)}; \
+	if [ "$$me" != root ] && [ -S /run/user/$$(id -u "$$me")/bus ]; then \
+		user=$$me; \
+	else \
+		user=$$(loginctl list-sessions --no-legend 2>/dev/null | \
+			awk '$$3 != "" && $$3 != "-" && $$4 == "user" { print $$3; exit }'); \
+	fi; \
+	case "$$user" in \
+	""|root) echo "Run 'nautilus -q' in your desktop session to restart Nautilus.";; \
+	*) setpriv --reuid="$$user" --regid="$$(id -gn "$$user")" --clear-groups \
+		--reset-env \
+		DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$$(id -u "$$user")/bus" \
+		sh -c 'command -v nautilus >/dev/null && nautilus -q' \
+		&& echo "Restarted Nautilus for $$user." \
+		|| echo "Run 'nautilus -q' in your desktop session to restart Nautilus.";; \
+	esac
+
+# A home-directory install does not work in sandboxed file managers: Nautilus
+# runs thumbnailers inside bubblewrap, which mounts only /usr (+ /proc, /dev)
+# and resolves the Exec program through the caller's PATH, so nothing under
+# $HOME is reachable. It cannot exec the program, and instead of showing no
+# preview it locks up or freezes. Until Nautilus changes, a .thumbnailer in
+# ~/.local/share/thumbnailers only helps if its Exec points at a program the
+# sandbox can reach, such as /usr/bin/3mfthumb, which is why unprivileged
+# installs and uninstalls are refused here.
+REFUSE_UNPRIVILEGED = \
+	echo "3mfthumb: unprivileged installs are not supported."; \
+	echo "Nautilus runs thumbnailers in a bubblewrap sandbox that cannot exec"; \
+	echo "programs from home directories, and it freezes instead of showing"; \
+	echo "no preview. Until Nautilus changes, a *.thumbnailer in"; \
+	echo "~/.local/share/thumbnailers only works if it points at an executable"; \
+	echo "the sandbox can reach, such as /usr/bin/3mfthumb."; \
+	echo "Install for every user with 'sudo make install'."; \
+	exit 1
+
 install:
-	$(info Installing to $(DESTDIR))
-	install -Ds $(NAME) $(DESTDIR)/bin/
-	install -D -m 644 3mf.thumbnailer $(DESTDIR)/share/thumbnailers/
-	$(RM) -rf $(HOME)/.cache/thumbnails/*
+ifeq ($(ROOT_INSTALL),0)
+	@$(REFUSE_UNPRIVILEGED)
+else
+	$(info Installing to $(DESTDIRS))
+	for d in $(DESTDIRS); do \
+		install -Dm 755 $(NAME) $$d/bin/$(NAME) && \
+		install -Dm 644 3mf.thumbnailer $$d/share/thumbnailers/3mf.thumbnailer || exit 1; \
+	done
+	install -D -m 644 3mf.thumbnailer $(SYSTEM_THUMBNAILER)
+	@$(NAUTILUS_RESTART)
+endif
 
 uninstall:
-	$(RM)  $(DESTDIR)/bin/$(NAME)
-	$(RM)  $(DESTDIR)/share/thumbnailers/3mf.thumbnailer
+ifeq ($(ROOT_INSTALL),0)
+	@$(REFUSE_UNPRIVILEGED)
+else
+	for d in $(DESTDIRS); do \
+		$(RM) $$d/bin/$(NAME) $$d/share/thumbnailers/3mf.thumbnailer; \
+	done
+	$(RM) $(SYSTEM_THUMBNAILER)
+	@$(NAUTILUS_RESTART)
+endif
+
 
 RPM_VERSION=$(shell sed -n 's/^Version:[[:space:]]*//p' $(NAME).spec)
 RPM_TOPDIR?=$(HOME)/rpmbuild

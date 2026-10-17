@@ -95,9 +95,15 @@ int main(int argc, char **argv) {
   }
   // Get file names from command-line arguments
   std::string filename = argv[argIndex];
-  // Thumbnailer programs are handed a URI, not a plain path.
-  if (filename.compare(0, 7, "file://") == 0) {
-    filename.erase(0, 7);
+  // Thumbnailer programs are handed a URI, not a plain path. Sandboxed
+  // Nautilus may pass a localhost authority (file://localhost/path).
+  static const std::string uriPrefixes[] = {"file://localhost/", "file://"};
+  for (const std::string &uriPrefix : uriPrefixes) {
+    if (filename.compare(0, uriPrefix.size(), uriPrefix) != 0)
+      continue;
+    filename.erase(0, uriPrefix.size());
+    if (uriPrefix.back() == '/')
+      filename.insert(filename.begin(), '/');
     std::string decoded;
     for (size_t i = 0; i < filename.size(); ++i) {
       if (filename[i] == '%' && i + 2 < filename.size() &&
@@ -111,6 +117,7 @@ int main(int argc, char **argv) {
       }
     }
     filename = fs::path(decoded).lexically_normal().string();
+    break;
   }
   std::string thumbnailFilename;
   if (argc > argIndex + 1)

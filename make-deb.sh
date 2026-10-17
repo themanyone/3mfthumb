@@ -22,16 +22,6 @@ ROOT=$WORK/root
 install -Dm 755 "$WORK/$NAME" "$ROOT/usr/bin/$NAME"
 install -Dm 644 "$SRCDIR/3mf.thumbnailer" \
 	"$ROOT/usr/share/thumbnailers/3mf.thumbnailer"
-# Nautilus 43+ ignores /usr/share/thumbnailers; an override in its resource
-# directory keeps 3MF previews working there.
-NAUTILUS_DIR="usr/lib/$( [ "$ARCH" = amd64 ] && echo x86_64-linux-gnu || echo "$ARCH-linux-gnu" )/nautilus/extensions-4"
-mkdir -p "$ROOT/$NAUTILUS_DIR"
-printf '<?xml version="1.0" encoding="UTF-8"?>\n<gresources>\n  <gresource prefix="/org/gnome/Nautilus">\n    <file alias="thumbnailers/3mf.thumbnailer">usr/share/thumbnailers/3mf.thumbnailer</file>\n  </gresource>\n</gresources>\n' \
-	> "$ROOT/$NAUTILUS_DIR/nautilus-thumbnailers.gresource.xml"
-(cd "$ROOT" && glib-compile-resources --sourcedir=. \
-	--target="$NAUTILUS_DIR/nautilus-thumbnailers.gresource" \
-	"$NAUTILUS_DIR/nautilus-thumbnailers.gresource.xml")
-rm -f "$ROOT/$NAUTILUS_DIR/nautilus-thumbnailers.gresource.xml"
 mkdir -p "$ROOT/DEBIAN"
 
 INSTALLED_SIZE=$(du -sk "$ROOT/usr" | cut -f1)

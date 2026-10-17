@@ -12,21 +12,22 @@ file managers (`pcmanfm`, `nautilus`, etc.) shell out to it as
 Explorer instead loads a registered COM shell extension
 (`win-shellext/ThumbnailProvider.cpp`) that implements `IThumbnailProvider`.
 
-The actual 3D model is never rendered; the program only pulls the pre-embedded
-thumbnail that slicer/design tools stored in the package.
+The program first pulls the pre-embedded thumbnail that slicer/design tools
+stored in the package. If there is none, it renders a flat-shaded PNG of the
+build meshes with Cairo (see "Architecture / control flow" below).
 
 ## Commands
 
 - `make` - build `3mfthumb` (Linux). Uses `pkg-config --cflags --libs lib3mf` to locate the Lib3MF headers (`lib3mf_implicit.hpp`) and libs. Deps: `lib3mf`, `libzip`, `zlib`.
-- `make install` - installs the binary and `3mf.thumbnailer` to `$HOME/.local/bin` and `$HOME/.local/share/thumbnailers/`, then **deletes the user's entire thumbnail cache** (`~/.cache/thumbnails/*`). If run as root it installs to `/usr/local` instead (`INSTALL_ROOT` vs `INSTALL_HOME` logic in the Makefile).
-- `make uninstall` / `make clean`
+- `make install` / `make uninstall` - **must be root**; without root they print why (Nautilus' bubblewrap sandbox cannot exec a thumbnailer from a home directory and freezes instead of showing no preview) and `exit 1` (`REFUSE_UNPRIVILEGED`). Both install `DESTDIRS=$(PREFIX)` (default `/usr`: `/usr/bin/3mfthumb`, `/usr/share/thumbnailers/3mf.thumbnailer`), never touch a home directory or a user cache, and finish with `NAUTILUS_RESTART`, which drops root via `setpriv` to `$SUDO_USER` (or the first `user` login session) and runs `nautilus -q` against `/run/user/<uid>/bus`; with no session it prints the command for the user instead. `/usr/bin` is required, not merely tidy: GNOME's thumbnail sandbox only mounts `/usr` and execs the program by name through the caller's `PATH`. `install -D` needs the file as the final argument (`-D src dir/file`, never `-D src dir/`).
+- `make clean`
 - **`make rpm`** (Fedora) - builds binary and source RPMs from `3mfthumb.spec` via `rpmbuild` (needs `rpm-build` + `spectool`). **`make deb`** (Debian/Ubuntu) - runs `make-deb.sh`, which compiles with pkg-config flags and assembles the package with plain `dpkg-deb`, so no `debhelper`/`dpkg-dev` is required. The version is read from `3mfthumb.spec` and the revision from `debian/changelog` (override with `VERSION=`/`REVISION=`); the `.deb` is written to the current directory. `debian/` is also a full `debhelper` source package whose `rules` builds through upstream's Makefile and stages files itself (no `make install`, since that targets a home prefix). Only the `make-deb.sh` path has been exercised (on Fedora); `dpkg-buildpackage` needs a Debian host.
 - `./3mfthumb <file.3mf> <out.png>` - run manually (see CLI contract below).
 - **Windows cross-compile**: enter the mingw environment (`mingw64-env`) then `mingw64-make CFLAGS=-I./lib3mf_sdk/Bindings/Cpp LDFLAGS="-l3mf -lzip -lz -L./lib3mf_sdk/Lib"` to produce `3mfthumb.exe`. Needs `mingw64-gcc-g++`, `mingw64-zlib`, `mingw64-libzip` and the `lib3mf.dll` from the SDK zip.
 - **CMake alternative**: `CMakeLists.txt` is a unified build for both Linux and Windows, **not tracked in git**; the Makefile is the primary build. On Windows it uses the bundled `lib3mf_sdk/` include dir, the `lib3mf_sdk/Lib/lib3mf.lib` import lib, links `zip z 3mf`, and copies `lib3mf_sdk/Bin/lib3mf.dll` next to the exe. On Linux/macOS it finds the distro lib3mf via pkg-config. Cross-build: `cmake -S . -B build-win -DCMAKE_SYSTEM_NAME=Windows -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++` then `cmake --build build-win`.
 - **Windows shell extension build**: cross-compile `win-shellext/ThumbnailProvider.cpp` with mingw-w64. See `win-shellext/README.md`; it uses the `CppDynamic` binding (`lib3mf_dynamic.hpp`) rather than `lib3mf_implicit.hpp`, and links `-lshlwapi -lole32 -loleaut32 -luuid -lgdi32 -lwindowscodecs`. Register with `regsvr32` (per-user, HKCU only).
 
-- **Packaging targets version 1.1.0** (tagged `v1.1.0`): `3mfthumb.spec`, `debian/changelog` and the `Source0`/`%{version}` in the spec all need bumping together for a new release.
+- **Packaging targets version 1.2.2** (tagged `v1.2.2`): `3mfthumb.spec`, `debian/changelog` and the `Source0`/`%{version}` in the spec all need bumping together for a new release.
 
 There is **no test suite**. Verification is manual: run `./3mfthumb some.3mf out.png` and inspect the output PNG (e.g. `file out.png`). The SDK examples under `lib3mf_sdk/Examples/Files/` (e.g. `Helix.3mf`) have no package thumbnail, so they produce no output; to test a hit, add `Metadata/thumbnail.png` plus a thumbnail relationship to the package rels.
 
@@ -43,12 +44,14 @@ package thumbnail and therefore writes *nothing*. Do not rely on the exit code
 or a guaranteed output file - a missing output file can be a success. Only the
 existence of a non-empty `<output.png>` indicates a thumbnail was found.
 
-A good no-thumbnail test case is `lib3mf_sdk/Examples/Files/Helix.3mf` - it
-silently produces no output.
+`lib3mf_sdk/Examples/Files/Helix.3mf` has no package thumbnail, so with `-r`
+it exercises the fallback renderer (a 256x256 PNG is written); without `-r`
+the renderer writes it too, since rendering is the fallback for missing
+previews.
 
 ## Architecture / control flow
 
-Everything lives in one file, `3mfthumb.cpp` (~67 lines):
+The core tool lives in one file, `3mfthumb.cpp` (~170 lines):
 
 1. Validate args.
 2. `Lib3MF::CWrapper::loadLibrary()` - loads Lib3MF. This is the **implicit
@@ -58,6 +61,10 @@ Everything lives in one file, `3mfthumb.cpp` (~67 lines):
 3. `wrapper->CreateModel()` -> `model->QueryReader("3mf")` -> `reader->ReadFromFile(filename)`.
 4. `model->HasPackageThumbnailAttachment()` then `GetPackageThumbnailAttachment()`, then `thumbnail->WriteToFile(thumbnailFilename)`.
 5. All Lib3MF calls throw `std::exception` on error; caught in `main`, message printed, returns `1`.
+6. Fallback: when there is no package thumbnail (or `-r`), `renderThumbnail()`
+   calls `threemf::render::renderToRGBA()` from `win-shellext/renderer.h` and
+   wraps it in a Cairo surface (Linux) or `writePNG()` (Windows). Render
+   errors are printed but do not change the exit code.
 
 The SDK (bundled under `lib3mf_sdk/`, version 2.4.1) is the reference for the
 API; the example sources under `lib3mf_sdk/Examples/Cpp/Source/*.cpp` show the
@@ -70,7 +77,11 @@ patterns (e.g. `ExtractInfo.cpp`).
 - **Arch Linux packaging bug**: `lib3mf` may install without symlinks to the C bindings; workaround is `ln -s /usr/include/lib3mf/Bindings/Cpp/* /usr/include/lib3mf/`.
 - **If pkg-config is missing**, the README documents substituting `BUILD_CFLAGS:=-I/usr/include/lib3mf` and `LDFLAGS:=-l3mf -lzip -lz` on the `make` command line.
 - **Windows two-arg mode**: under `#ifdef WIN32` the argument guard is `argc < 2`, so `3mfthumb <file.3mf>` (no output path) is a valid one-argument invocation there; it writes the thumbnail where Explorer expects it. The `argc < 3` guard only applies on non-Windows builds.
-- **The thumbnailer cache**: after `make install`, existing stale thumbnails block new previews. The Makefile already wipes `~/.cache/thumbnails/*`, but after manual testing you may need to do the same (`rm -rf $HOME/.cache/thumbnails/*`), and file managers may need "previews for files > 1MB" enabled.
+- **The thumbnailer cache**: after `make install`, existing stale thumbnails block new previews. The Makefile does not wipe `/home/*/.cache/thumbnails` (root must not touch a user's cache), so document `rm -rf $HOME/.cache/thumbnails/*`; a failed `.3mf` keeps a marker under `~/.cache/thumbnails/fail/gnome-thumbnail-factory/` until the cache is cleared. File managers may need "previews for files > 1MB" enabled.
+- **Never ship a Nautilus GResource overlay**: tracing `openat` shows Nautilus 49 never opens `~/.local/lib64`; it only loads the three `.so` extensions in `/usr/lib64/nautilus/extensions-4`. A stray `nautilus-thumbnailers.gresource` there made Nautilus hang on startup (killed by the session). The old `install-nautilus` target and the copies in `3mfthumb.spec`, `debian/rules` and `make-deb.sh` were removed for this reason; the system-wide `/usr/share/thumbnailers` entry is the fix.
+- **The GNOME thumbnail sandbox command** (captured from gnome-desktop's `bwrap` argv) is `bwrap --ro-bind /usr /usr --ro-bind-try /etc/ld.so.cache --symlink /usr//bin /bin --symlink /usr//lib64 /lib64 --symlink /usr//lib /lib --symlink /usr//sbin /sbin --proc /proc --dev /dev --chdir / --setenv GIO_USE_VFS local --unshare-all --die-with-parent --bind <tmpdir> /tmp --ro-bind <file> /tmp/gnome-desktop-file-to-thumbnail.3mf --seccomp N 3mfthumb /tmp/gnome-desktop-file-to-thumbnail.3mf /tmp/gnome-desktop-thumbnailer.png`. Only `argv[0]` is resolved through the caller's `PATH`, `/home`, `/etc` and `/usr/local` are not mounted, the input is a path (not a URI) and no `.thumbnailer` key disables the sandbox. Reproduce by hand without seccomp: `bwrap --ro-bind /usr /usr ... --unshare-all 3mfthumb <file> /tmp/o.png`; with the binary in `/usr/bin` it exits 0.
+- **Nautilus thumbnails are unreliable to debug in-process.** `Gio.File.query_info_async("thumbnail::*")` never spawns a thumbnailer here, and a Nautilus started from a test harness (PTY, `--new-window`, or a `dbus-run-session`) does not generate thumbnails at all, not even for PNGs, because GIO refuses it without a registered application (printed as `Failed to register: Timeout was reached`). Only a real desktop session is authoritative: wipe `~/.cache/thumbnails`, restart Nautilus and look for a `<md5 of file URI>` file under `~/.cache/thumbnails/large/`.
+- **Two thumbnailers for one MIME type is undefined**: distros ship `stl-thumb` claiming `model/3mf`. With both registered, Nautilus may sit on a slow GPU renderer; remove the 3MF claim from `stl-thumb.thumbnailer`.
 - **Mime types**: `3mf.thumbnailer` advertises `MimeType=model/3mf;application/vnd.ms-3mfdocument;`. If a file manager still doesn't pick up `.3mf`, the mime registration is usually the issue, not the binary.
 - **Do not commit build artifacts or vendored SDK**: `.gitignore` now covers `*.o`, `*.exe`, `*.dll`, `build-win/`, and `lib3mf_sdk/`, so those stay untracked. The `lib3mf_sdk/` directory is a manual download (`lib3mf_sdk_v2.4.1.zip` from the lib3mf releases page), not a submodule. Tracked files include `3mfthumb.cpp`, `Makefile`, `3mf.thumbnailer`, `README.md`, `LICENSE`, `preview.png`, `.gitignore`, `win-shellext/`, `3mfthumb.spec`, `make-deb.sh`, and `debian/`. `.deb` files and the `debian/3mfthumb/` staging dir are ignored. Note: `CMakeLists.txt` and `CMakeLists.txt.linux` are still **not** tracked.
 - **Windows shell extension is now on `main`**: the `win-shellext/` COM extension (originally from the `ksuquix-forks/main` fork, merged upstream as PR #8) was folded into this repo's `main` as a regular tracked directory, replacing the old registry-exe approach in the README. The real mechanism is an in-process `IThumbnailProvider` COM object, not a shelled-out executable. Don't regress the README back to the regedit/`ThumbnailHandler`-pointing-at-exe advice.

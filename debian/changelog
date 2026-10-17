@@ -1,3 +1,12 @@
+3mfthumb (1.2.2-1) unstable; urgency=medium
+
+  * New upstream release: install to /usr/bin, which is the only location
+    Nautilus' bubblewrap thumbnail sandbox can reach, and drop the GResource
+    overlay that made Nautilus hang at startup.
+  * Fix file:// URI decoding, which wrote no thumbnail at all.
+
+ -- Henry Kroll III <nospam@thenerdshow.com>  Sat, 17 Oct 2026 00:00:00 -0800
+
 3mfthumb (1.2.1-1) unstable; urgency=medium
 
   * New upstream release: Windows Explorer renders 3MF files that have no

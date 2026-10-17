@@ -6,6 +6,35 @@ Preview images are great. As .3mf is supposed to be the universal 3D Printing st
 
 ![preview](preview.png)
 
+## Changelog
+
+**1.2.2**
+
+- `make install` / `make uninstall` now refuse to run without root, and
+  install only to `PREFIX` (`/usr`): `/usr/bin/3mfthumb` and
+  `/usr/share/thumbnailers/3mf.thumbnailer`. Nautilus runs thumbnailers in a
+  bubblewrap sandbox that mounts only `/usr` and cannot exec anything from a
+  home directory; it freezes instead of showing no preview. Until Nautilus
+  changes, a `*.thumbnailer` in `~/.local/share/thumbnailers` only works if
+  its `Exec` points at a program the sandbox can reach, such as
+  `/usr/bin/3mfthumb`.
+- Dropped the `nautilus-thumbnailers.gresource` overlay and `make
+  install-nautilus`; the overlay made Nautilus hang at startup. This also
+  removes the `glib2-devel` build requirement from the RPM.
+- Both targets restart Nautilus for the desktop user (`setpriv` plus that
+  user's session bus) instead of leaving it to the user.
+- Fixed `file://` URI decoding (and `file://localhost/`), which previously
+  wrote no thumbnail at all.
+
+**1.2.1**
+
+- Windows Explorer renders 3MF files that have no stored thumbnail image.
+
+**1.2.0**
+
+- Render the meshes when a package has no embedded preview image, and add
+  `-r` / `--render`.
+
 ## Get it from GitHub
 
 ```
@@ -30,40 +59,101 @@ We will assume a GNU build environment with tools like `gcc-c++`, `pkg-config` a
 
 ```
 make
-make install
+sudo make install
 ```
 
-*Multi-user environments.* Please do not use `sudo make install` unless the system has 
-multiple graphical desktop users. In that case, you may edit `Makefile` to change `DESTDIR` 
-to `INSTALL_ROOT`. And manually remove old thumbnails for each user:
+Now `make install` (and `make uninstall`) must be run as root. It installs
+`PREFIX/bin/3mfthumb` and `PREFIX/share/thumbnailers/3mf.thumbnailer`
+(`/usr/bin` and `/usr/share` by default) and never writes to a home
+directory.
 
-`rm -rf $HOME/.cache/thumbnails/*`
+Without root it **refuses to run** and explains why: unprivileged installs
+do not work with sandboxed file managers. Nautilus runs thumbnailers inside a
+bubblewrap sandbox that mounts only `/usr` (`/proc`, `/dev`) and looks the
+`Exec` program up in `PATH`, so it cannot run anything from a home directory.
+Rather than just showing no preview, Nautilus simply locks up or freezes.
+Until Nautilus is fixed, a `*.thumbnailer` in `~/.local/share/thumbnailers`
+only helps if its `Exec` points at a program the sandbox can reach, such as
+`/usr/bin/3mfthumb`.
 
-Previews typically work after this. If not, log out of the desktop session (or reboot).
+Any `~/.local` copy left over from older versions should be removed,
+together with the old `~/.local/lib64/nautilus/extensions-4/nautilus-thumbnailers.gresource`
+overlay (`make install-nautilus`, since removed), which made Nautilus hang at
+startup:
+
+```
+rm -f ~/.local/bin/3mfthumb ~/.local/share/thumbnailers/3mf.thumbnailer \
+    ~/.local/lib64/nautilus/extensions-4/nautilus-thumbnailers.gresource*
+```
+
+`sudo make install` does not touch thumbnail caches, because they belong to users,
+but it does restart Nautilus for the invoking desktop user (it drops root with
+`setpriv` and talks to that user's session bus). From a root shell with no
+desktop session it asks you to run `nautilus -q` yourself. Clear the cache
+once, so files that failed before are tried again:
+
+```
+rm -rf $HOME/.cache/thumbnails/*
+```
 
 Don't forget to configure file manager preferences to show previews for files > 1MB.
 
-`make uninstall` to remove these components if no longer needed.
+`sudo make uninstall` removes these components again.
 
 ### Nautilus does not show previews
 
-GNOME's Nautilus (43 and later) no longer trusts `~/.local/share/thumbnailers`.
-It follows its own list of thumbnailers, compiled into GResources that it
-loads from `/usr/lib64/nautilus/extensions-4/`, so entries written by
-`3mfthumb %i %o` are ignored and `.3mf` files fall back to whatever the
-distribution registered (usually `stl-thumb`, which renders on the GPU and
-fails inside Nautilus' headless thumbnailer). `make install` therefore also
-writes a small `nautilus-thumbnailers.gresource` that maps 3MF files to
-`3mfthumb`; `make install-nautilus` does just that step. It needs
-`glib-compile-resources` (package `glib2-devel` / `libglib2.0-dev`) and does
-nothing when Nautilus is not installed. Quit Nautilus (`nautilus -q`) and
-reopen the folder afterwards. If previews still do not appear, copy
-`/usr/share/thumbnailers/3mf.thumbnailer` into an active
-`nautilus-thumbnailers.gresource` there with `glib-compile-resources` (and
-relaunch Nautilus), that path is the one Nautilus actually reads.
+Nautilus 43 and later reads thumbnailer entries only from
+`/usr/share/thumbnailers/`; it ignores `~/.local/share/thumbnailers`, never
+scans `~/.local/lib64`, and honours no "do not sandbox" key in a
+`.thumbnailer` file (`X-AllowInstantUnbox` and friends do nothing).
+
+GNOME's thumbnail sandbox is why the binary has to live in `/usr/bin`. The
+command that Nautilus ends up running looks like this:
+
+```
+bwrap --ro-bind /usr /usr --ro-bind-try /etc/ld.so.cache \
+      --symlink /usr//bin /bin --symlink /usr//lib64 /lib64 ... \
+      --proc /proc --dev /dev --chdir / --unshare-all --die-with-parent \
+      --ro-bind /path/to/model.3mf /tmp/gnome-desktop-file-to-thumbnail.3mf \
+      3mfthumb /tmp/gnome-desktop-file-to-thumbnail.3mf /tmp/gnome-desktop-thumbnailer.png
+```
+
+Only `/usr` (plus `/proc` and `/dev`) is mounted, `$HOME` and `/usr/local`
+are not, and the program name is resolved through the caller's `PATH`. So an
+install in `~/.local/bin` or `/usr/local/bin` is invisible to the sandbox and
+every `.3mf` preview silently fails (Nautilus writes a marker under
+`~/.cache/thumbnails/fail/` and shows the generic icon). `sudo make install`
+avoids this by using `/usr`; the DEB and RPM packages do the same.
+
+**Ad:** If you'd like to run something in a sandbox ^^^ like the above ^^^
+or put AI in a sandbox, check out [my sbx project](https://github.com/themanyone/sbx).
+But please note that a sandbox is for safety, not security. It prevents accidental
+file access. This is old news. But since AI companies still haven't figured it out:
+**Attention: Malicious AI software can get around it.**
+
+#### When a distribution already registers another thumbnailer
+
+**It's probably fine.** But if problems crop up, here's a potential solution.
+
+Distributions may ship `stl-thumb` for `model/3mf`, and two thumbnailers
+claiming the same MIME type is undefined behaviour, so to remove the 3MF claim
+from the other one:
+
+```
+sudo sed -i 's/;\?model\/3mf;;*//; s/^MimeType=model\/3mf;/MimeType=/' \
+    /usr/share/thumbnailers/stl-thumb.thumbnailer
+rm -rf ~/.cache/thumbnails/*
+nautilus -q
+```
+
+#### Other Linux packages
+
+The RPM and the DEB install `/usr/bin/3mfthumb` and
+`/usr/share/thumbnailers/3mf.thumbnailer`, so they work with the sandbox as
+they are; nothing in them needs changing for this.
 
 PCManFM, Thunar and `gtk-thumbnail-factory` honour
-`~/.local/share/thumbnailers` and need none of this.
+`~/.local/share/thumbnailers` and are fine with running anything from home directories.
 
 ## Developer logic
 
@@ -124,8 +214,8 @@ make CFLAGS=-I./lib3mf_sdk/Bindings/Cpp LDFLAGS="-l3mf -lzip -lz -lcairo -L./lib
 `/usr/bin/3mfthumb` and `/usr/share/thumbnailers/3mf.thumbnailer`.
 
 **Grab the latest package here:**
-[Download `3mfthumb-1.2.1-1.fc43.x86_64.rpm`](https://github.com/themanyone/3mfthumb/releases/latest)
-and install it with `sudo dnf install ./3mfthumb-1.2.1-1.fc43.x86_64.rpm`.
+[Download `3mfthumb-1.2.2-1.fc43.x86_64.rpm`](https://github.com/themanyone/3mfthumb/releases/latest)
+and install it with `sudo dnf install ./3mfthumb-1.2.2-1.fc43.x86_64.rpm`.
 The matching source RPM is on the same release page.
 
 `make rpm` builds the binary RPM and the source RPM locally. It downloads
@@ -134,6 +224,11 @@ the v1.1.0 GitHub archive (verified to contain every tracked file) into
 `~/rpmbuild/RPMS` and `~/rpmbuild/SRPMS`; set `RPM_TOPDIR` for a different
 tree. The target needs `rpm-build`, `spectool` and network access, and
 leaves nothing behind in the source tree.
+
+The spec no longer ships a `nautilus-thumbnailers.gresource` overlay (it made
+Nautilus hang at startup) and no longer needs `glib2-devel`; like the DEB it
+relies on `/usr/share/thumbnailers`, which Nautilus reads and the thumbnail
+sandbox can reach.
 
 `rpmlint 3mfthumb.spec` reports no packaging errors. The remaining notices
 are inherited from upstream: the postal address in the GPL text is out of
@@ -146,8 +241,8 @@ Ninja is not involved.
 ## Debian / Ubuntu DEB
 
 **Grab the latest package here:**
-[Download `3mfthumb_1.2.1-1_amd64.deb`](https://github.com/themanyone/3mfthumb/releases/latest)
-and install it with `sudo apt install ./3mfthumb_1.2.1-1_amd64.deb`.
+[Download `3mfthumb_1.2.2-1_amd64.deb`](https://github.com/themanyone/3mfthumb/releases/latest)
+and install it with `sudo apt install ./3mfthumb_1.2.2-1_amd64.deb`.
 The package depends on `lib3mf1`, `libzip5`, `libcairo2` and `zlib1g`, which apt pulls in
 from the distribution. Afterwards run `rm -rf $HOME/.cache/thumbnails/*` so
 file managers regenerate previews.
@@ -166,7 +261,7 @@ links against the host's own libraries.
 ```
 sudo apt install lib3mf-dev libzip-dev libcairo2-dev zlib1g-dev
 make deb
-sudo apt install ./3mfthumb_1.2.1-1_amd64.deb
+sudo apt install ./3mfthumb_1.2.2-1_amd64.deb
 ```
 
 The package installs `/usr/bin/3mfthumb` and
@@ -179,14 +274,14 @@ The `debian/` directory is also a complete `debhelper` source package, so
 the usual tooling works on a release tree:
 
 ```
-git archive --format=tar --prefix=3mfthumb-1.2.1/ v1.2.1 | tar -x
-cd 3mfthumb-1.2.1 && sudo apt install debhelper dpkg-dev
+git archive --format=tar --prefix=3mfthumb-1.2.2/ v1.2.2 | tar -x
+cd 3mfthumb-1.2.2 && sudo apt install debhelper dpkg-dev
 dpkg-buildpackage -us -uc -b
 ```
 
 `debian/rules` calls upstream's `Makefile` directly (the same reasoning as
-the RPM spec) and stages the files itself, since `make install` targets a
-home directory. This tree is also what a Debian or Ubuntu upload or a PPA
+the RPM spec) and stages `/usr/bin/3mfthumb` plus
+`/usr/share/thumbnailers/3mf.thumbnailer` itself. This tree is also what a Debian or Ubuntu upload or a PPA
 build would use.
 
 ## Cross compiling to Windows
@@ -272,16 +367,15 @@ it. Verified working against real Windows Explorer (via
 
 GNOME file managers run thumbnailers inside a
 [bubblewrap](https://gitlab.gnome.org/GNOME/gnome-desktop#thumbnailing-sandboxing)
-sandbox that only exposes `/usr`, `/etc`, `/proc` and `/dev`. `3mfthumb`
-accepts the `file://` URI (with percent-escaped characters) that GNOME passes
-as `%i`, so it works from the sandbox as long as the binary is installed where
-the sandbox can see it -- `/usr/bin` via the DEB/RPM packages, or
-`/usr/local/bin` (`sudo make install`) instead of `~/.local/bin`.
-
-If previews still don't appear, either the cached thumbnail is stale,
-or previews for files > 1MB are disabled in the file manager preferences.
-
-`rm -rf $HOME/.cache/thumbnails/*`
+sandbox that mounts only `/usr`, `/proc` and `/dev` (no `$HOME`, no
+`/usr/local`) and execs the program by name through the caller's `PATH`. The
+binary therefore has to be installed as `/usr/bin/3mfthumb`, which is what
+`sudo make install`, the RPM and the DEB do; a `~/.local/bin` or
+`/usr/local/bin` install is never found and Nautilus shows no preview. The
+sandbox passes a plain path (`%i` is rewritten to
+`/tmp/gnome-desktop-file-to-thumbnail.3mf`), and `3mfthumb` accepts both that
+and a `file://` URI with percent-escaped characters, so a plain path works
+too.
 
 ## Known Issues
 
