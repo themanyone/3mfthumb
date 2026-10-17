@@ -89,6 +89,12 @@ make CFLAGS=-I./lib3mf_sdk/Bindings/Cpp LDFLAGS="-l3mf -lzip -lz -L./lib3mf_sdk/
 
 ## Cross compiling to Windows
 
+**Fedora dependencies.**
+
+```
+sudo dnf install mingw64-nsis python3-scons
+```
+
 To build Windows executable on Linux system, Use the distro's package manager to install `mingw64-gcc-g++`, `mingw64-zlib`, and `mingw64-libzip`. Now we need the `lib3mf.dll`, available from the above SDK download.
 
 Now use `mingw64-make` to build the windows executable, `3mfthumb.exe`. Set LIBS to the location of the extracted lib3mf/Lib dir, which should already contain a precompiled library `lib3mf.dll`.
@@ -107,6 +113,13 @@ cmake --build build-win
 
 ## Windows install
 
+**There is now a proper Windows 11 installer build (untested).** See
+[`win-installer/`](win-installer/): `build.sh` cross-compiles the shell
+extension (and the CLI), and produces a per-user NSIS installer
+(`3mfthumb-setup.exe`) that installs the files, registers the COM server,
+and wires up a normal uninstall entry -- all without administrator rights.
+
+**Manual cross-compile & install.**
 `3mfthumb.exe` itself is just a command-line converter (`3mfthumb file.3mf out.png`)
 -- it's not something Windows Explorer can call on its own. Explorer only
 generates thumbnails through a registered in-process COM object that
