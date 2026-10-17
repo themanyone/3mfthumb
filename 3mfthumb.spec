@@ -1,5 +1,5 @@
 Name:           3mfthumb
-Version:        1.1.0
+Version:        1.1.1
 Release:        1%{?dist}
 Summary:        Embedded 3MF thumbnail extractor for desktop file managers
 
@@ -59,5 +59,8 @@ sed -i 's|^INSTALL_HOME=$(HOME)/\.local$|INSTALL_HOME=$(PREFIX)|' \
 %{_datadir}/thumbnailers/3mf.thumbnailer
 
 %changelog
+* Sat Oct 17 2026 Henry Kroll III <nospam@thenerdshow.com> - 1.1.1-1
+- Accept file:// URIs so GNOME/Nautilus sandboxed thumbnailers work
+
 * Sat Oct 17 2026 Henry Kroll III <nospam@thenerdshow.com> - 1.1.0-1
 - Initial package for the v1.1.0 release
