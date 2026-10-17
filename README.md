@@ -87,6 +87,26 @@ Now we can build 3mfthumb
 make CFLAGS=-I./lib3mf_sdk/Bindings/Cpp LDFLAGS="-l3mf -lzip -lz -L./lib3mf_sdk/Lib"
 ```
 
+## Fedora RPM
+
+`3mfthumb.spec` packages the binary and the thumbnailer definition as
+`/usr/bin/3mfthumb` and `/usr/share/thumbnailers/3mf.thumbnailer`.
+
+`make rpm` builds the binary RPM and the source RPM locally. It downloads
+the v1.1.0 GitHub archive (verified to contain every tracked file) into
+`~/rpmbuild/SOURCES` if needed, then runs `rpmbuild -ba`. Output lands in
+`~/rpmbuild/RPMS` and `~/rpmbuild/SRPMS`; set `RPM_TOPDIR` for a different
+tree. The target needs `rpm-build`, `spectool` and network access, and
+leaves nothing behind in the source tree.
+
+`rpmlint 3mfthumb.spec` reports no packaging errors. The remaining notices
+are inherited from upstream: the postal address in the GPL text is out of
+date. The missing man page and `%check` section are also tolerated.
+
+The spec builds with upstream's `Makefile`, not with `%cmake`: the only
+CMake harness in the tree is the untracked Windows cross-build file, so
+Ninja is not involved.
+
 ## Cross compiling to Windows
 
 **Fedora dependencies.**
