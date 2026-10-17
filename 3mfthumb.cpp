@@ -26,13 +26,19 @@ namespace fs = std::filesystem;
 #error "After git commit c22ea6b, C++17 or later is required for this code."
 #endif
 int main(int argc, char **argv) {
-  if (argc < 3){
+#ifdef WIN32
+  if (argc < 2) {
+#else
+  if (argc < 3) {
+#endif
     std::cout << "Usage: 3mfthumb <file.3mf> <output.png>" << std::endl;
     return 1;
   }
   // Get file names from command-line arguments
   std::string filename = argv[1];
-  std::string thumbnailFilename = argv[2];
+  std::string thumbnailFilename;
+  if (argc > 2)
+    thumbnailFilename = argv[2];
   try
   {
     auto wrapper = Lib3MF::CWrapper::loadLibrary();
