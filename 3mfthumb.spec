@@ -1,5 +1,5 @@
 Name:           3mfthumb
-Version:        1.2.0
+Version:        1.2.1
 Release:        1%{?dist}
 Summary:        Embedded 3MF thumbnail extractor for desktop file managers
 
@@ -76,6 +76,9 @@ sed -i 's|^INSTALL_HOME=$(HOME)/\.local$|INSTALL_HOME=$(PREFIX)|' \
 %{_datadir}/thumbnailers/3mf.thumbnailer
 
 %changelog
+* Sat Oct 17 2026 Henry Kroll III <nospam@thenerdshow.com> - 1.2.1-1
+- Windows shell extension renders packages without an embedded thumbnail
+
 * Sat Oct 17 2026 Henry Kroll III <nospam@thenerdshow.com> - 1.2.0-1
 - Render the meshes when a package has no embedded preview image
 - Add -r/--render to force rendering, and material colours from 3MF

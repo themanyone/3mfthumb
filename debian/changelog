@@ -1,7 +1,13 @@
+3mfthumb (1.2.1-1) unstable; urgency=medium
+
+  * New upstream release: Windows Explorer renders 3MF files that have no
+    stored thumbnail image, like the Linux build already did.
+
+ -- Henry Kroll III <nospam@thenerdshow.com>  Sat, 17 Oct 2026 00:00:00 -0800
+
 3mfthumb (1.2.0-1) unstable; urgency=medium
 
-  * New upstream release: render meshes when no preview image is embedded,
-    and add -r/--render. Depends on libcairo2.
+  * New upstream release: render meshes when no preview image is embedded.
 
  -- Henry Kroll III <nospam@thenerdshow.com>  Sat, 17 Oct 2026 00:00:00 -0800
 

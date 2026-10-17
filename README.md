@@ -124,8 +124,8 @@ make CFLAGS=-I./lib3mf_sdk/Bindings/Cpp LDFLAGS="-l3mf -lzip -lz -lcairo -L./lib
 `/usr/bin/3mfthumb` and `/usr/share/thumbnailers/3mf.thumbnailer`.
 
 **Grab the latest package here:**
-[Download `3mfthumb-1.2.0-1.fc43.x86_64.rpm`](https://github.com/themanyone/3mfthumb/releases/latest)
-and install it with `sudo dnf install ./3mfthumb-1.2.0-1.fc43.x86_64.rpm`.
+[Download `3mfthumb-1.2.1-1.fc43.x86_64.rpm`](https://github.com/themanyone/3mfthumb/releases/latest)
+and install it with `sudo dnf install ./3mfthumb-1.2.1-1.fc43.x86_64.rpm`.
 The matching source RPM is on the same release page.
 
 `make rpm` builds the binary RPM and the source RPM locally. It downloads
@@ -146,8 +146,8 @@ Ninja is not involved.
 ## Debian / Ubuntu DEB
 
 **Grab the latest package here:**
-[Download `3mfthumb_1.2.0-1_amd64.deb`](https://github.com/themanyone/3mfthumb/releases/latest)
-and install it with `sudo apt install ./3mfthumb_1.2.0-1_amd64.deb`.
+[Download `3mfthumb_1.2.1-1_amd64.deb`](https://github.com/themanyone/3mfthumb/releases/latest)
+and install it with `sudo apt install ./3mfthumb_1.2.1-1_amd64.deb`.
 The package depends on `lib3mf1`, `libzip5`, `libcairo2` and `zlib1g`, which apt pulls in
 from the distribution. Afterwards run `rm -rf $HOME/.cache/thumbnails/*` so
 file managers regenerate previews.
@@ -166,7 +166,7 @@ links against the host's own libraries.
 ```
 sudo apt install lib3mf-dev libzip-dev libcairo2-dev zlib1g-dev
 make deb
-sudo apt install ./3mfthumb_1.2.0-1_amd64.deb
+sudo apt install ./3mfthumb_1.2.1-1_amd64.deb
 ```
 
 The package installs `/usr/bin/3mfthumb` and
@@ -179,8 +179,8 @@ The `debian/` directory is also a complete `debhelper` source package, so
 the usual tooling works on a release tree:
 
 ```
-git archive --format=tar --prefix=3mfthumb-1.2.0/ v1.2.0 | tar -x
-cd 3mfthumb-1.2.0 && sudo apt install debhelper dpkg-dev
+git archive --format=tar --prefix=3mfthumb-1.2.1/ v1.2.1 | tar -x
+cd 3mfthumb-1.2.1 && sudo apt install debhelper dpkg-dev
 dpkg-buildpackage -us -uc -b
 ```
 
