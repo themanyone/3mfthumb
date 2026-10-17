@@ -113,11 +113,16 @@ cmake --build build-win
 
 ## Windows install
 
-**There is now a proper Windows 11 installer build (untested).** See
-[`win-installer/`](win-installer/): `build.sh` cross-compiles the shell
-extension (and the CLI), and produces a per-user NSIS installer
-(`3mfthumb-setup.exe`) that installs the files, registers the COM server,
-and wires up a normal uninstall entry -- all without administrator rights.
+**Grab the latest installer right here:**
+[Download `3mfthumb-setup.exe`](https://github.com/themanyone/3mfthumb/releases/latest).
+It is a per-user NSIS installer that installs the shell extension, registers
+the COM server, and wires up a normal uninstall entry -- all without
+administrator rights.
+
+**Building from source.** See [`win-installer/`](win-installer/): `build.sh`
+cross-compiles the shell extension (and the CLI), and produces the per-user
+NSIS installer (`3mfthumb-setup.exe`) that installs the files, registers the
+COM server, and adds the uninstall entry.
 
 **Manual cross-compile & install.**
 `3mfthumb.exe` itself is just a command-line converter (`3mfthumb file.3mf out.png`)
