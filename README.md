@@ -92,6 +92,11 @@ make CFLAGS=-I./lib3mf_sdk/Bindings/Cpp LDFLAGS="-l3mf -lzip -lz -L./lib3mf_sdk/
 `3mfthumb.spec` packages the binary and the thumbnailer definition as
 `/usr/bin/3mfthumb` and `/usr/share/thumbnailers/3mf.thumbnailer`.
 
+**Grab the latest package here:**
+[Download `3mfthumb-1.1.0-1.fc43.x86_64.rpm`](https://github.com/themanyone/3mfthumb/releases/latest)
+and install it with `sudo dnf install ./3mfthumb-1.1.0-1.fc43.x86_64.rpm`.
+The matching source RPM is on the same release page.
+
 `make rpm` builds the binary RPM and the source RPM locally. It downloads
 the v1.1.0 GitHub archive (verified to contain every tracked file) into
 `~/rpmbuild/SOURCES` if needed, then runs `rpmbuild -ba`. Output lands in
