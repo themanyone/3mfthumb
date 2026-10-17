@@ -51,6 +51,8 @@
 
 #include <lib3mf_dynamic.hpp>
 
+#include "renderer.h"
+
 static const CLSID CLSID_3mfThumbnailProvider = {
     0x7d602115, 0x78f3, 0x4e84, { 0xa2, 0xe3, 0x7e, 0x6f, 0x53, 0x50, 0x1c, 0xfe }
 };
@@ -172,6 +174,46 @@ static HRESULT CreateHBITMAPFromImageBytes(const std::vector<Lib3MF_uint8> &byte
     return FAILED(hr) ? hr : E_FAIL;
 }
 
+// Wrap an RGBA pixel buffer (square, top row first, alpha 255) in a
+// premultiplied-alpha HBITMAP for Explorer.
+static HRESULT CreateHBITMAPFromPixels(const std::vector<uint8_t> &pixels, UINT cx,
+                                       HBITMAP *phbmp, WTS_ALPHATYPE *pdwAlpha)
+{
+    if (pixels.size() != (size_t)cx * cx * 4) return E_INVALIDARG;
+
+    BITMAPINFO bmi;
+    ZeroMemory(&bmi, sizeof(bmi));
+    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth = (LONG)cx;
+    bmi.bmiHeader.biHeight = -(LONG)cx; // top-down
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    void *pBits = nullptr;
+    HBITMAP hbmp = CreateDIBSection(nullptr, &bmi, DIB_RGB_COLORS, &pBits, nullptr, 0);
+    if (!hbmp || !pBits) {
+        if (hbmp) DeleteObject(hbmp);
+        return E_OUTOFMEMORY;
+    }
+
+    BYTE *dst = (BYTE *)pBits;
+    for (size_t i = 0; i < (size_t)cx * cx; ++i) {
+        const BYTE r = pixels[i * 4 + 0];
+        const BYTE g = pixels[i * 4 + 1];
+        const BYTE b = pixels[i * 4 + 2];
+        // Opaque pixels are already premultiplied (alpha 255).
+        dst[i * 4 + 0] = b;
+        dst[i * 4 + 1] = g;
+        dst[i * 4 + 2] = r;
+        dst[i * 4 + 3] = 255;
+    }
+
+    *phbmp = hbmp;
+    *pdwAlpha = WTSAT_ARGB;
+    return S_OK;
+}
+
 class CThumbnailProvider : public IThumbnailProvider, public IInitializeWithFile, public IInitializeWithStream
 {
 public:
@@ -262,12 +304,19 @@ public:
             else
                 reader->ReadFromFile(WideToUtf8(m_filePath));
 
-            if (!model->HasPackageThumbnailAttachment()) return S_FALSE;
+            if (model->HasPackageThumbnailAttachment()) {
+                Lib3MF::PAttachment thumbnail = model->GetPackageThumbnailAttachment();
+                std::vector<Lib3MF_uint8> buffer;
+                thumbnail->WriteToBuffer(buffer);
+                return CreateHBITMAPFromImageBytes(buffer, cx, phbmp, pdwAlpha);
+            }
 
-            Lib3MF::PAttachment thumbnail = model->GetPackageThumbnailAttachment();
-            std::vector<Lib3MF_uint8> buffer;
-            thumbnail->WriteToBuffer(buffer);
-            return CreateHBITMAPFromImageBytes(buffer, cx, phbmp, pdwAlpha);
+            // No stored preview: draw the meshes the same way the Linux
+            // build does, then wrap the pixels in an HBITMAP.
+            std::vector<uint8_t> pixels;
+            if (!threemf::render::renderToRGBA(model, (int)cx, pixels))
+                return S_FALSE;
+            return CreateHBITMAPFromPixels(pixels, cx, phbmp, pdwAlpha);
         } catch (std::exception &) {
             return E_FAIL;
         }

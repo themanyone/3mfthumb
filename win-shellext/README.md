@@ -6,7 +6,10 @@ read the PNG it writes. Windows Explorer has no equivalent "run this exe
 and read its output" mechanism -- it only calls a registered in-process
 COM object that implements `IThumbnailProvider`. This directory is that
 COM object: a small DLL that extracts the same embedded 3MF thumbnail
-(via lib3mf) and hands it to Explorer as an `HBITMAP`.
+(via lib3mf) and hands it to Explorer as an `HBITMAP`. When a file has no
+embedded thumbnail, it renders the meshes instead using `renderer.h`, the
+same code the command-line tool uses, so both platforms draw the same
+picture.
 
 It registers itself under `HKEY_CURRENT_USER\Software\Classes`, so no
 administrator rights are needed.
@@ -25,6 +28,7 @@ unzip lib3mf_sdk_v2.5.0.zip -d lib3mf_sdk
 cd win-shellext
 x86_64-w64-mingw32-g++ -std=c++17 -Wall -O2 \
   -I../lib3mf_sdk/lib3mf_sdk/Bindings/CppDynamic \
+  -I. \
   -c ThumbnailProvider.cpp -o ThumbnailProvider.o
 
 x86_64-w64-mingw32-g++ -shared -o 3mfthumbprovider.dll \
@@ -48,6 +52,10 @@ Notes on why the build looks the way it does:
 - **`-static-libgcc -static-libstdc++`.** mingw's default dynamic
   runtime linking pulls in `libstdc++-6.dll`, which stock Windows
   doesn't ship.
+- **`renderer.h` is shared with `3mfthumb.cpp`.** The CLI includes the
+  same header, so a fix to the camera or shading shows up in Explorer too.
+  It picks the lib3mf binding from the platform macro: `lib3mf_implicit.hpp`
+  on Linux, `lib3mf_dynamic.hpp` here for the reason above.
 - **`IInitializeWithStream`, not just `IInitializeWithFile`.** Explorer's
   thumbnail cache (`IShellItemImageFactory::GetImage`) only ever queries
   for `IInitializeWithStream` in practice, even though

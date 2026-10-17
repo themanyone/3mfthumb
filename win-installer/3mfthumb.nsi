@@ -40,7 +40,7 @@ VIAddVersionKey /LANG=1033 "ProductVersion" "1.0.0"
 VIAddVersionKey /LANG=1033 "FileDescription" "3MF thumbnail handler for Windows Explorer"
 VIAddVersionKey /LANG=1033 "FileVersion" "1.0.0.0"
 VIAddVersionKey /LANG=1033 "LegalCopyright" "Copyright (C) 2026 Henry Kroll III, Don Eisele"
-VIAddVersionKey /LANG=1033 "Comments" "Extracts embedded thumbnails from 3MF files for Windows Explorer."
+VIAddVersionKey /LANG=1033 "Comments" "Shows 3MF previews in Windows Explorer, rendering the model when the file has no embedded thumbnail."
 
 ; ---------------------------------------------------------------------------
 ; Modern UI 2
@@ -113,7 +113,7 @@ Section -Post
   ; Uninstaller + control-panel entry (per-user, no admin needed).
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\3mfthumb" "DisplayName" "3mfthumb"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\3mfthumb" "DisplayVersion" "1.0.0"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\3mfthumb" "DisplayVersion" "1.2.0"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\3mfthumb" "Publisher" "Henry Kroll III"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\3mfthumb" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\3mfthumb" "DisplayIcon" "$INSTDIR\3mfthumbprovider.dll"

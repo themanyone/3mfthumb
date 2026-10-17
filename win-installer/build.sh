@@ -52,6 +52,7 @@ if [ ! -f "$WINPTHREAD" ]; then
   echo "warning: $WINPTHREAD not found; skipping CLI build." >&2
 elif (cd "$ROOT" && \
   "$CXX" -std=c++17 -Wall -O2 -I"$SDK/Bindings/Cpp" \
+    -I"$SDK/Bindings/CppDynamic" \
     -c 3mfthumb.cpp -o 3mfthumb-win.o && \
   "$CXX" 3mfthumb-win.o -o 3mfthumb.exe \
     -L"$SDK/Lib" -l3mf -lzip -lz \
