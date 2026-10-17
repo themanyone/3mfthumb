@@ -65,19 +65,8 @@ make
 sudo make install
 ```
 
-Now `make install` (and `make uninstall`) must be run as root. It installs
-`PREFIX/bin/3mfthumb` and `PREFIX/share/thumbnailers/3mf.thumbnailer`
-(`/usr/bin` and `/usr/share` by default) and never writes to a home
-directory.
-
-Without root it **refuses to run** and explains why: unprivileged installs
-do not work with sandboxed file managers. Nautilus runs thumbnailers inside a
-bubblewrap sandbox that mounts only `/usr` (`/proc`, `/dev`) and looks the
-`Exec` program up in `PATH`, so it cannot run anything from a home directory.
-Rather than just showing no preview, Nautilus simply locks up or freezes.
-Until Nautilus is fixed, a `*.thumbnailer` in `~/.local/share/thumbnailers`
-only helps if its `Exec` points at a program the sandbox can reach, such as
-`/usr/bin/3mfthumb`.
+Earlier versions allowed installing as a non-privileged user. But that was
+incompatible with the direciton Nautilus & other file managers are going.
 
 Any `~/.local` copy left over from older versions should be removed,
 together with the old `~/.local/lib64/nautilus/extensions-4/nautilus-thumbnailers.gresource`
@@ -89,14 +78,11 @@ rm -f ~/.local/bin/3mfthumb ~/.local/share/thumbnailers/3mf.thumbnailer \
     ~/.local/lib64/nautilus/extensions-4/nautilus-thumbnailers.gresource*
 ```
 
-`sudo make install` does not touch thumbnail caches, because they belong to users,
-but it does restart Nautilus for the invoking desktop user (it drops root with
-`setpriv` and talks to that user's session bus). From a root shell with no
-desktop session it asks you to run `nautilus -q` yourself. Clear the cache
-once, so files that failed before are tried again:
+Clear thumbnail cache & restart the file manager.
 
 ```
 rm -rf $HOME/.cache/thumbnails/*
+nautilus -q
 ```
 
 Don't forget to configure file manager preferences to show previews for files > 1MB.
