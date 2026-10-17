@@ -121,6 +121,13 @@ The package depends on `lib3mf1`, `libzip5` and `zlib1g`, which apt pulls in
 from the distribution. Afterwards run `rm -rf $HOME/.cache/thumbnails/*` so
 file managers regenerate previews.
 
+**Caveat: the published `.deb` is built on Fedora, not Debian.** It needs
+glibc 2.34 or newer, so Ubuntu 22.04 and later and Debian 12 and later can
+use it, while older releases (Ubuntu 20.04, Debian 11) will reject it with
+a `GLIBC_2.xx not found` error. On those systems, or on ARM/RISC-V or other
+non-amd64 machines, build the package locally with `make deb` below, which
+links against the host's own libraries.
+
 `make deb` builds the same package locally (see
 [issue #7](https://github.com/themanyone/3mfthumb/issues/7)) using nothing but
 `dpkg-deb`, a C++ compiler and `pkg-config` -- no `debhelper`, no `dpkg-dev`:
