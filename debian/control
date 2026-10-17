@@ -6,6 +6,7 @@ Build-Depends:
  debhelper-compat (= 13),
  pkg-config,
  lib3mf-dev,
+ libcairo2-dev,
  libzip-dev,
  zlib1g-dev,
 Standards-Version: 4.7.0
@@ -23,5 +24,5 @@ Description: thumbnail generator for 3D Manufacturing Format files
  3mfthumb extracts the thumbnail image that slicer and design applications
  embed in a 3MF package and writes it out as a PNG. It implements the
  freedesktop.org thumbnailer interface, so file managers such as Nautilus,
- Thunar and PCManFM can show previews of .3mf files. The 3D model itself is
- never rendered.
+ Thunar and PCManFM can show previews of .3mf files. When a package has no
+ embedded image, the build meshes are rendered instead.

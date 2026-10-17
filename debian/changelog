@@ -1,3 +1,10 @@
+3mfthumb (1.2.0-1) unstable; urgency=medium
+
+  * New upstream release: render meshes when no preview image is embedded,
+    and add -r/--render. Depends on libcairo2.
+
+ -- Henry Kroll III <nospam@thenerdshow.com>  Sat, 17 Oct 2026 00:00:00 -0800
+
 3mfthumb (1.1.1-1) unstable; urgency=medium
 
   * New upstream release: accept file:// URIs from sandboxed thumbnailers.

@@ -8,8 +8,13 @@ export DEB_LDFLAGS_MAINT_APPEND = -Wl,--as-needed
 override_dh_auto_build:
 	$(MAKE) CXX="$(CXX)" \
 		CFLAGS="$(CXXFLAGS)" \
-		BUILD_CFLAGS="-I/usr/include/lib3mf" \
-		LDFLAGS="-l3mf -lzip -lz $(LDFLAGS)"
+		BUILD_CFLAGS="-I/usr/include/lib3mf $(shell pkg-config --cflags cairo)" \
+		LDFLAGS="-l3mf -lzip -lz -lcairo $(LDFLAGS)"
+
+# Directory under the package root for the Nautilus resource. dh provides
+# DEB_HOST_MULTIARCH on Debian; the default only matters for local builds.
+DEB_HOST_MULTIARCH ?= x86_64-linux-gnu
+NAUTILUS_DIR = usr/lib/$(DEB_HOST_MULTIARCH)/nautilus/extensions-4
 
 override_dh_auto_clean:
 	$(MAKE) clean
@@ -20,6 +25,15 @@ override_dh_auto_install:
 	install -Dpm 755 3mfthumb $(CURDIR)/debian/3mfthumb/usr/bin/3mfthumb
 	install -Dpm 644 3mf.thumbnailer \
 		$(CURDIR)/debian/3mfthumb/usr/share/thumbnailers/3mf.thumbnailer
+	# Nautilus 43+ ignores /usr/share/thumbnailers and loads thumbnailers
+	# from GResources in its extension directory, so add an override there.
+	mkdir -p $(CURDIR)/debian/3mfthumb/$(NAUTILUS_DIR)
+	printf '<?xml version="1.0" encoding="UTF-8"?>\n<gresources>\n  <gresource prefix="/org/gnome/Nautilus">\n    <file alias="thumbnailers/3mf.thumbnailer">usr/share/thumbnailers/3mf.thumbnailer</file>\n  </gresource>\n</gresources>\n' \
+		> $(CURDIR)/debian/3mfthumb/$(NAUTILUS_DIR)/nautilus-thumbnailers.gresource.xml
+	cd $(CURDIR)/debian/3mfthumb && glib-compile-resources --sourcedir=. \
+		--target=$(NAUTILUS_DIR)/nautilus-thumbnailers.gresource \
+		$(NAUTILUS_DIR)/nautilus-thumbnailers.gresource.xml
+	rm -f $(CURDIR)/debian/3mfthumb/$(NAUTILUS_DIR)/nautilus-thumbnailers.gresource.xml
 
 %:
 	dh $@

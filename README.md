@@ -1,6 +1,6 @@
 # 3mfthumb
 
-Extract thumbnail images from 3MF files and display them in file managers.
+Show 3MF previews in file managers: use the embedded thumbnail image, or render the meshes when there is none.
 
 Preview images are great. As .3mf is supposed to be the universal 3D Printing standard, and adoption is expected to be rapid, we should be able to see embedded thumbnail image previews for them in file managers like `pcmanfm`, `nautilus`, or even Windows `explorer`.
 
@@ -16,13 +16,13 @@ cd 3mfthumb
 ## Linux dependencies
 
 Fedora, Centos.
-`dnf install libzip-devel lib3mf-devel zlib-ng-devel`
+`dnf install libzip-devel lib3mf-devel cairo-devel zlib-ng-devel`
 
 Ubuntu, Debian.
-`apt install libzip-dev lib3mf-dev zlib1g-dev`
+`apt install libzip-dev lib3mf-dev libcairo2-dev zlib1g-dev`
 
 Arch
-`pacman -S libzip lib3mf zlib1g`
+`pacman -S libzip lib3mf cairo zlib`
 
 We will assume a GNU build environment with tools like `gcc-c++`, `pkg-config` and `make`.
 
@@ -45,6 +45,26 @@ Don't forget to configure file manager preferences to show previews for files > 
 
 `make uninstall` to remove these components if no longer needed.
 
+### Nautilus does not show previews
+
+GNOME's Nautilus (43 and later) no longer trusts `~/.local/share/thumbnailers`.
+It follows its own list of thumbnailers, compiled into GResources that it
+loads from `/usr/lib64/nautilus/extensions-4/`, so entries written by
+`3mfthumb %i %o` are ignored and `.3mf` files fall back to whatever the
+distribution registered (usually `stl-thumb`, which renders on the GPU and
+fails inside Nautilus' headless thumbnailer). `make install` therefore also
+writes a small `nautilus-thumbnailers.gresource` that maps 3MF files to
+`3mfthumb`; `make install-nautilus` does just that step. It needs
+`glib-compile-resources` (package `glib2-devel` / `libglib2.0-dev`) and does
+nothing when Nautilus is not installed. Quit Nautilus (`nautilus -q`) and
+reopen the folder afterwards. If previews still do not appear, copy
+`/usr/share/thumbnailers/3mf.thumbnailer` into an active
+`nautilus-thumbnailers.gresource` there with `glib-compile-resources` (and
+relaunch Nautilus), that path is the one Nautilus actually reads.
+
+PCManFM, Thunar and `gtk-thumbnail-factory` honour
+`~/.local/share/thumbnailers` and need none of this.
+
 ## Developer logic
 
 The current version of the [Lib3MF](https://3mf.io/) API uses the `lib3mf_implicit.hpp` 
@@ -59,13 +79,24 @@ format and read the model from a file using `ReadFromFile()`. Finally, we query 
 `HasPackageThumbnailAttachment()` and `GetPackageThumbnailAttachment()` methods to retrieve the thumbnail 
 attachment and write it to a file using `WriteToFile()`.
 
+When a package carries no preview image (many slicers only embed one on
+export), the build items are traversed instead: component transforms are
+composed (including objects stored in separate `p:path` model parts), the
+model is viewed from a 35 degree yaw / 30 degree elevation orbit camera with
+Lambert shading, painted back to front through Cairo. Material colours from
+`basematerials` and `m:colorgroup` are used when present. This is a plain
+preview, not a full renderer: no textures, beam lattices or level sets.
+
+Use `3mfthumb -r in.3mf out.png` (or `--render`) to render the meshes even
+when the package does have an embedded preview.
+
 ## Build problems
 
-The `Makefile` uses `pkg-config --cflags --libs lib3mf` to obtain the compiler flags to use. In particular, the location of `lib3mf_implicit.hpp`. If for some reason your system does not have pkg-config, you might be able to substitute these into the `Makefile`.
+The `Makefile` uses `pkg-config --cflags --libs lib3mf cairo` to obtain the compiler flags to use. In particular, the location of `lib3mf_implicit.hpp`. If for some reason your system does not have pkg-config, you might be able to substitute these into the `Makefile`.
 
 `BUILD_CFLAGS:=-I/usr/include/lib3mf`
 
-`LDFLAGS:=-l3mf -lzip -lz`
+`LDFLAGS:=-l3mf -lzip -lz -lcairo`
 
 On Arch, `lib3mf-dev` may not be properly installed. The build script forgot to create simlinks to the C bindings. It should be filed as a bug. A command such as th following might work around the issue.
 
@@ -84,7 +115,7 @@ unzip lib3mf_sdk*
 Now we can build 3mfthumb
 
 ```
-make CFLAGS=-I./lib3mf_sdk/Bindings/Cpp LDFLAGS="-l3mf -lzip -lz -L./lib3mf_sdk/Lib"
+make CFLAGS=-I./lib3mf_sdk/Bindings/Cpp LDFLAGS="-l3mf -lzip -lz -lcairo -L./lib3mf_sdk/Lib"
 ```
 
 ## Fedora RPM
@@ -93,8 +124,8 @@ make CFLAGS=-I./lib3mf_sdk/Bindings/Cpp LDFLAGS="-l3mf -lzip -lz -L./lib3mf_sdk/
 `/usr/bin/3mfthumb` and `/usr/share/thumbnailers/3mf.thumbnailer`.
 
 **Grab the latest package here:**
-[Download `3mfthumb-1.1.1-1.fc43.x86_64.rpm`](https://github.com/themanyone/3mfthumb/releases/latest)
-and install it with `sudo dnf install ./3mfthumb-1.1.1-1.fc43.x86_64.rpm`.
+[Download `3mfthumb-1.2.0-1.fc43.x86_64.rpm`](https://github.com/themanyone/3mfthumb/releases/latest)
+and install it with `sudo dnf install ./3mfthumb-1.2.0-1.fc43.x86_64.rpm`.
 The matching source RPM is on the same release page.
 
 `make rpm` builds the binary RPM and the source RPM locally. It downloads
@@ -115,9 +146,9 @@ Ninja is not involved.
 ## Debian / Ubuntu DEB
 
 **Grab the latest package here:**
-[Download `3mfthumb_1.1.1-1_amd64.deb`](https://github.com/themanyone/3mfthumb/releases/latest)
-and install it with `sudo apt install ./3mfthumb_1.1.1-1_amd64.deb`.
-The package depends on `lib3mf1`, `libzip5` and `zlib1g`, which apt pulls in
+[Download `3mfthumb_1.2.0-1_amd64.deb`](https://github.com/themanyone/3mfthumb/releases/latest)
+and install it with `sudo apt install ./3mfthumb_1.2.0-1_amd64.deb`.
+The package depends on `lib3mf1`, `libzip5`, `libcairo2` and `zlib1g`, which apt pulls in
 from the distribution. Afterwards run `rm -rf $HOME/.cache/thumbnails/*` so
 file managers regenerate previews.
 
@@ -133,9 +164,9 @@ links against the host's own libraries.
 `dpkg-deb`, a C++ compiler and `pkg-config` -- no `debhelper`, no `dpkg-dev`:
 
 ```
-sudo apt install lib3mf-dev libzip-dev zlib1g-dev
+sudo apt install lib3mf-dev libzip-dev libcairo2-dev zlib1g-dev
 make deb
-sudo apt install ./3mfthumb_1.1.1-1_amd64.deb
+sudo apt install ./3mfthumb_1.2.0-1_amd64.deb
 ```
 
 The package installs `/usr/bin/3mfthumb` and
@@ -148,8 +179,8 @@ The `debian/` directory is also a complete `debhelper` source package, so
 the usual tooling works on a release tree:
 
 ```
-git archive --format=tar --prefix=3mfthumb-1.1.1/ v1.1.1 | tar -x
-cd 3mfthumb-1.1.1 && sudo apt install debhelper dpkg-dev
+git archive --format=tar --prefix=3mfthumb-1.2.0/ v1.2.0 | tar -x
+cd 3mfthumb-1.2.0 && sudo apt install debhelper dpkg-dev
 dpkg-buildpackage -us -uc -b
 ```
 
@@ -172,7 +203,7 @@ Now use `mingw64-make` to build the windows executable, `3mfthumb.exe`. Set LIBS
 
 ```
 mingw64-env #important!
-mingw64-make CFLAGS=-I./lib3mf_sdk/Bindings/Cpp LDFLAGS="-l3mf -lzip -lz -L./lib3mf_sdk/Lib"
+mingw64-make CFLAGS=-I./lib3mf_sdk/Bindings/Cpp LDFLAGS="-l3mf -lzip -lz -lcairo -L./lib3mf_sdk/Lib"
 ```
 
 **Alternative cmake Windows build.**
@@ -247,8 +278,7 @@ as `%i`, so it works from the sandbox as long as the binary is installed where
 the sandbox can see it -- `/usr/bin` via the DEB/RPM packages, or
 `/usr/local/bin` (`sudo make install`) instead of `~/.local/bin`.
 
-If previews still don't appear, the package may simply have no embedded
-thumbnail (the 3D model is never rendered), the cached thumbnail is stale,
+If previews still don't appear, either the cached thumbnail is stale,
 or previews for files > 1MB are disabled in the file manager preferences.
 
 `rm -rf $HOME/.cache/thumbnails/*`
