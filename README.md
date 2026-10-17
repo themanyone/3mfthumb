@@ -89,15 +89,20 @@ make CFLAGS=-I./lib3mf_sdk/Bindings/Cpp LDFLAGS="-l3mf -lzip -lz -L./lib3mf_sdk/
 
 ## Cross compiling to Windows
 
-To build Windows executable on Linux system, Use 
-the distro's package manager to install `mingw64-gcc-g++`, `mingw64-zlib`, and 
-`mingw64-libzip`. Now we need the `lib3mf.dll`, available from the above SDK download.
+To build Windows executable on Linux system, Use the distro's package manager to install `mingw64-gcc-g++`, `mingw64-zlib`, and `mingw64-libzip`. Now we need the `lib3mf.dll`, available from the above SDK download.
 
 Now use `mingw64-make` to build the windows executable, `3mfthumb.exe`. Set LIBS to the location of the extracted lib3mf/Lib dir, which should already contain a precompiled library `lib3mf.dll`.
 
 ```
 mingw64-env #important!
 mingw64-make CFLAGS=-I./lib3mf_sdk/Bindings/Cpp LDFLAGS="-l3mf -lzip -lz -L./lib3mf_sdk/Lib"
+```
+
+**Alternative cmake Windows build.**
+
+```
+cmake -S . -B build-win -DCMAKE_SYSTEM_NAME=Windows \ -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++
+cmake --build build-win
 ```
 
 ## Windows install
