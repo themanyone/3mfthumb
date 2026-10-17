@@ -1,0 +1,25 @@
+#!/usr/bin/make -f
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+export DEB_LDFLAGS_MAINT_APPEND = -Wl,--as-needed
+
+# Upstream's install target assumes a user-local prefix, so the files are
+# staged directly under the package root.
+override_dh_auto_build:
+	$(MAKE) CXX="$(CXX)" \
+		CFLAGS="$(CXXFLAGS)" \
+		BUILD_CFLAGS="-I/usr/include/lib3mf" \
+		LDFLAGS="-l3mf -lzip -lz $(LDFLAGS)"
+
+override_dh_auto_clean:
+	$(MAKE) clean
+
+override_dh_auto_test:
+
+override_dh_auto_install:
+	install -Dpm 755 3mfthumb $(CURDIR)/debian/3mfthumb/usr/bin/3mfthumb
+	install -Dpm 644 3mf.thumbnailer \
+		$(CURDIR)/debian/3mfthumb/usr/share/thumbnailers/3mf.thumbnailer
+
+%:
+	dh $@

@@ -5,7 +5,7 @@ INSTALL_HOME=$(HOME)/.local
 INSTALL_ROOT=$(PREFIX)/local
 DESTDIR=$(INSTALL_HOME)
 .SUFFIXES:.cpp .o
-.PHONY: install uninstall clean rpm
+.PHONY: install uninstall clean rpm deb
 SRCS=$(wildcard *.cpp)
 OBJS=$(SRCS:.cpp=.o)
 CFLAGS?=-g -Wall -O2 -std=c++17
@@ -54,6 +54,9 @@ rpm:
 		--define '_srcrpmdir $(RPM_TOPDIR)/SRPMS' \
 		$(NAME).spec
 	@echo "Built packages in $(RPM_TOPDIR)/RPMS and $(RPM_TOPDIR)/SRPMS"
+
+deb:
+	sh ./make-deb.sh
 
 clean:
 	$(RM) *.o $(NAME)

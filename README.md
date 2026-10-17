@@ -112,6 +112,45 @@ The spec builds with upstream's `Makefile`, not with `%cmake`: the only
 CMake harness in the tree is the untracked Windows cross-build file, so
 Ninja is not involved.
 
+## Debian / Ubuntu DEB
+
+**Grab the latest package here:**
+[Download `3mfthumb_1.1.0-1_amd64.deb`](https://github.com/themanyone/3mfthumb/releases/latest)
+and install it with `sudo apt install ./3mfthumb_1.1.0-1_amd64.deb`.
+The package depends on `lib3mf1`, `libzip5` and `zlib1g`, which apt pulls in
+from the distribution. Afterwards run `rm -rf $HOME/.cache/thumbnails/*` so
+file managers regenerate previews.
+
+`make deb` builds the same package locally (see
+[issue #7](https://github.com/themanyone/3mfthumb/issues/7)) using nothing but
+`dpkg-deb`, a C++ compiler and `pkg-config` -- no `debhelper`, no `dpkg-dev`:
+
+```
+sudo apt install lib3mf-dev libzip-dev zlib1g-dev
+make deb
+sudo apt install ./3mfthumb_1.1.0-1_amd64.deb
+```
+
+The package installs `/usr/bin/3mfthumb` and
+`/usr/share/thumbnailers/3mf.thumbnailer`. The version is read from
+`3mfthumb.spec` and the revision from `debian/changelog`; override either
+with `VERSION=...` / `REVISION=...` (`ARCH=i386` cross-arch packages are
+possible on a Debian host that has the matching libraries).
+
+The `debian/` directory is also a complete `debhelper` source package, so
+the usual tooling works on a release tree:
+
+```
+git archive --format=tar --prefix=3mfthumb-1.1.0/ v1.1.0 | tar -x
+cd 3mfthumb-1.1.0 && sudo apt install debhelper dpkg-dev
+dpkg-buildpackage -us -uc -b
+```
+
+`debian/rules` calls upstream's `Makefile` directly (the same reasoning as
+the RPM spec) and stages the files itself, since `make install` targets a
+home directory. This tree is also what a Debian or Ubuntu upload or a PPA
+build would use.
+
 ## Cross compiling to Windows
 
 **Fedora dependencies.**
