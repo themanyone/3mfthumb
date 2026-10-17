@@ -8,7 +8,7 @@ DESTDIR=$(INSTALL_HOME)
 .PHONY: install clean
 SRCS=$(wildcard *.cpp)
 OBJS=$(SRCS:.cpp=.o)
-CFLAGS?=-g -Wall -O2
+CFLAGS?=-g -Wall -O2 -std=c++17
 BUILD_CFLAGS:=$(shell pkg-config --cflags lib3mf)
 LDFLAGS:=$(shell pkg-config --libs lib3mf)
 ifeq ($(shell whoami), root)
