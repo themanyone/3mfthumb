@@ -17,6 +17,7 @@
 /// Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 /// MA 02110-1301, USA.
 
+#include <cctype>
 #include <iostream>
 #include <lib3mf_implicit.hpp>
 #if __cplusplus >= 201703L // Check if C++17 or later is supported
@@ -36,6 +37,23 @@ int main(int argc, char **argv) {
   }
   // Get file names from command-line arguments
   std::string filename = argv[1];
+  // Thumbnailer programs are handed a URI, not a plain path.
+  if (filename.compare(0, 7, "file://") == 0) {
+    filename.erase(0, 7);
+    std::string decoded;
+    for (size_t i = 0; i < filename.size(); ++i) {
+      if (filename[i] == '%' && i + 2 < filename.size() &&
+          std::isxdigit(static_cast<unsigned char>(filename[i + 1])) &&
+          std::isxdigit(static_cast<unsigned char>(filename[i + 2]))) {
+        decoded += static_cast<char>(
+            std::stoi(filename.substr(i + 1, 2), nullptr, 16));
+        i += 2;
+      } else {
+        decoded += filename[i];
+      }
+    }
+    filename = fs::path(decoded).lexically_normal().string();
+  }
   std::string thumbnailFilename;
   if (argc > 2)
     thumbnailFilename = argv[2];
@@ -66,7 +84,7 @@ int main(int argc, char **argv) {
   }
   catch (std::exception &e)
   {
-    std::cout << e.what() << std::endl;
+    std::cerr << "3mfthumb: " << e.what() << std::endl;
     return 1;
   }
   return 0;

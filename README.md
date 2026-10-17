@@ -237,14 +237,25 @@ administrator rights are needed. `regsvr32 /u 3mfthumbprovider.dll` undoes
 it. Verified working against real Windows Explorer (via
 `IShellItemImageFactory::GetImage`, the same API Explorer itself uses).
 
-## Known Issues
+## Nautilus / GNOME sandboxing
 
-[Kubuntu thumbnailer commands work, but nautilus fails to genereate](https://duckduckgo.com/?q=Kubuntu+sandboxing+thumbnailers+with+bubblewrap) ...
+GNOME file managers run thumbnailers inside a
+[bubblewrap](https://gitlab.gnome.org/GNOME/gnome-desktop#thumbnailing-sandboxing)
+sandbox that only exposes `/usr`, `/etc`, `/proc` and `/dev`. `3mfthumb`
+accepts the `file://` URI (with percent-escaped characters) that GNOME passes
+as `%i`, so it works from the sandbox as long as the binary is installed where
+the sandbox can see it -- `/usr/bin` via the DEB/RPM packages, or
+`/usr/local/bin` (`sudo make install`) instead of `~/.local/bin`.
 
-Try (re)installing ffmpegthumbnailer. After that, the system might be configured to 
-show thumbnails, since this topic has generated a lot of discussion. Then again.
+If previews still don't appear, the package may simply have no embedded
+thumbnail (the 3D model is never rendered), the cached thumbnail is stale,
+or previews for files > 1MB are disabled in the file manager preferences.
 
 `rm -rf $HOME/.cache/thumbnails/*`
+
+## Known Issues
+
+Windows Explorer thumbnails now work via the COM shell extension in
 
 Windows Explorer thumbnails now work via the COM shell extension in
 [`win-shellext/`](win-shellext/) -- see the Windows install section above.

@@ -33,6 +33,10 @@ There is **no test suite**. Verification is manual: run `./3mfthumb some.3mf out
 ## CLI contract
 
 `3mfthumb <file.3mf> <output.png>`, `argc < 3` prints usage and returns `1`.
+The input may also be a `file://` URI (percent-escapes are decoded), because
+GNOME-based file managers hand thumbnailers a URI via `%i` from inside a
+bubblewrap sandbox that only binds `/usr`, `/etc`, `/proc`, `/dev`.
+Errors go to stderr prefixed with `3mfthumb: `.
 
 **Gotcha:** the program returns exit code `0` even when the 3MF has *no*
 package thumbnail and therefore writes *nothing*. Do not rely on the exit code
@@ -65,7 +69,7 @@ patterns (e.g. `ExtractInfo.cpp`).
 - **`lib3mf_implicit.hpp` is never in the repo** (when using the distro package) - it comes from `lib3mf-devel` at `/usr/include/lib3mf/`, discovered via pkg-config. clangd/LSP will report `pp_file_not_found: 'lib3mf_implicit.hpp'` and cascade "undeclared identifier `Lib3MF`" errors because it doesn't use pkg-config's include path. These are expected, not real build failures. `win-shellext/ThumbnailProvider.cpp` is different: a scoped `win-shellext/.clangd` points clangd at the mingw-w64 sysroot and the bundled `CppDynamic` headers, so its diagnostics are real (requires the mingw-w64 toolchain installed).
 - **Arch Linux packaging bug**: `lib3mf` may install without symlinks to the C bindings; workaround is `ln -s /usr/include/lib3mf/Bindings/Cpp/* /usr/include/lib3mf/`.
 - **If pkg-config is missing**, the README documents substituting `BUILD_CFLAGS:=-I/usr/include/lib3mf` and `LDFLAGS:=-l3mf -lzip -lz` on the `make` command line.
-- **Dead Windows branch**: inside `#ifdef WIN32` the code checks `if (argc == 2)`, but the earlier guard (`argc < 3` -> return 1) makes `argc == 2` unreachable, so that whole block is dead code as written. Don't be confused by it; it appears to be a leftover from an earlier two-arg CLI design.
+- **Windows two-arg mode**: under `#ifdef WIN32` the argument guard is `argc < 2`, so `3mfthumb <file.3mf>` (no output path) is a valid one-argument invocation there; it writes the thumbnail where Explorer expects it. The `argc < 3` guard only applies on non-Windows builds.
 - **The thumbnailer cache**: after `make install`, existing stale thumbnails block new previews. The Makefile already wipes `~/.cache/thumbnails/*`, but after manual testing you may need to do the same (`rm -rf $HOME/.cache/thumbnails/*`), and file managers may need "previews for files > 1MB" enabled.
 - **Mime types**: `3mf.thumbnailer` advertises `MimeType=model/3mf;application/vnd.ms-3mfdocument;`. If a file manager still doesn't pick up `.3mf`, the mime registration is usually the issue, not the binary.
 - **Do not commit build artifacts or vendored SDK**: `.gitignore` now covers `*.o`, `*.exe`, `*.dll`, `build-win/`, and `lib3mf_sdk/`, so those stay untracked. The `lib3mf_sdk/` directory is a manual download (`lib3mf_sdk_v2.4.1.zip` from the lib3mf releases page), not a submodule. Tracked files include `3mfthumb.cpp`, `Makefile`, `3mf.thumbnailer`, `README.md`, `LICENSE`, `preview.png`, `.gitignore`, `win-shellext/`, `3mfthumb.spec`, `make-deb.sh`, and `debian/`. `.deb` files and the `debian/3mfthumb/` staging dir are ignored. Note: `CMakeLists.txt` and `CMakeLists.txt.linux` are still **not** tracked.
