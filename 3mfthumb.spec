@@ -67,12 +67,13 @@ install -Dpm 644 LICENSE %{buildroot}%{_docdir}/%{name}/LICENSE
 cp -pr win-installer win-shellext kde-shellext %{buildroot}%{_docdir}/%{name}/
 
 %if %{with kde}
-# KDE thumbnail plugin (the real IThumbnailCreator equivalent). It carries the
-# Qt/KIO dependency, so it lives in the -kde subpackage, and the freedesktop
-# thumbnailer above stays the only thing the base package installs.
-%{cmake} -B build-kde -S kde-shellext -DCMAKE_INSTALL_PREFIX=%{_prefix}
-%cmake_build -B build-kde
-%cmake_install -B build-kde
+# KDE thumbnail plugin. It carries the Qt/KIO dependency, so it lives in the
+# -kde subpackage, and the freedesktop thumbnailer above stays the only thing
+# the base package installs. Plain cmake calls: the %%cmake macros force their
+# own build directory, which would collide with build-kde.
+cmake -S kde-shellext -B build-kde -DCMAKE_INSTALL_PREFIX=%{_prefix}
+cmake --build build-kde --verbose %{?_smp_mflags}
+DESTDIR=%{buildroot} cmake --install build-kde
 %endif
 
 # Ship the sources so rebuilding as documented works from the installed docs.
