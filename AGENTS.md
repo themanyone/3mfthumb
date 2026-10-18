@@ -67,7 +67,7 @@ one mesh renderer, `win-shellext/renderer.h`.
   (`lib3mf_dynamic.hpp`) and links `-lshlwapi -lole32 -loleaut32 -luuid -lgdi32
   -lwindowscodecs`. Register with `regsvr32` (per-user, HKCU only).
 - **CMake alternative (cross-platform only)**: the root `CMakeLists.txt` is a
-  unified Linux/Windows build and is **not tracked in git**; the Makefile is
+  unified Linux/Windows build, tracked in git. the Makefile is
   the primary build. Cross-build: `cmake -S . -B build-win
   -DCMAKE_SYSTEM_NAME=Windows -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++`.
 

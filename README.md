@@ -4,10 +4,13 @@ Show 3MF and STL previews in file managers: use the package's embedded thumbnail
 
 Preview images are great. As .3mf is supposed to be the universal 3D Printing standard, and adoption is expected to be rapid, we should be able to see embedded thumbnail image previews for them in file managers like `pcmanfm`, `nautilus`, or even Windows `explorer`.
 
-<figure align="center">
-<img src="preview.png">
-<figcaption><em>Figure 1: Bungee Hook.3mf <a href="https://www.printables.com/model/1361093-adjustable-bungee-hook">available on Printables.com</a></em></figcaptoin>
-</figure>
+<div style="text-align: center;">
+    <figure>
+    <img src="preview.png" alt="Bungee Hook">
+    <br>
+        <figcaption><em>Figure 1: Bungee Hook.3mf <a href="https://www.printables.com/model/1361093-adjustable-bungee-hook">available on Printables.com</a></em></figcaptoin>
+    </figure>
+</div>
 
 ## Changelog
 
@@ -106,48 +109,40 @@ Don't forget to configure file manager preferences to show previews for files > 
 ### Nautilus does not show previews
 
 Nautilus 43 and later reads thumbnailer entries only from
-`/usr/share/thumbnailers/`; it ignores `~/.local/share/thumbnailers`, never
-scans `~/.local/lib64`, and honours no "do not sandbox" key in a
-`.thumbnailer` file (`X-AllowInstantUnbox` and friends do nothing).
+`/usr/share/thumbnailers/`
 
-GNOME's thumbnail sandbox is why the binary has to live in `/usr/bin`. The
-command that Nautilus ends up running looks like this:
+GNOME's thumbnail sandbox is why the binary has to live in `/usr/bin`.
+See [Nautilus / GNOME sandboxing](#nautilus--gnome-sandboxing) below.
 
-```
-bwrap --ro-bind /usr /usr --ro-bind-try /etc/ld.so.cache \
-      --symlink /usr//bin /bin --symlink /usr//lib64 /lib64 ... \
-      --proc /proc --dev /dev --chdir / --unshare-all --die-with-parent \
-      --ro-bind /path/to/model.3mf /tmp/gnome-desktop-file-to-thumbnail.3mf \
-      3mfthumb /tmp/gnome-desktop-file-to-thumbnail.3mf /tmp/gnome-desktop-thumbnailer.png
-```
+#### When a distribution already registers another thumbnailer.
 
-Only `/usr` (plus `/proc` and `/dev`) is mounted, `$HOME` and `/usr/local`
-are not, and the program name is resolved through the caller's `PATH`. So an
-install in `~/.local/bin` or `/usr/local/bin` is invisible to the sandbox and
-every `.3mf` preview silently fails (Nautilus writes a marker under
-`~/.cache/thumbnails/fail/` and shows the generic icon). `sudo make install`
-avoids this by using `/usr`; the DEB and RPM packages do the same.
+**It's probably fine.** But *before reporting bugs*, here's a potential solution.
 
-**Ad:** If you'd like to run something in a sandbox ^^^ like the above ^^^
-or put AI in a sandbox, check out [my sbx project](https://github.com/themanyone/sbx).
-But please note that a sandbox is for safety, not security. It prevents accidental
-file access. This is old news. But since AI companies still haven't figured it out:
-**Attention: Malicious AI software can get around it.**
+Distributions may ship `other thumbnailers` for `model/3mf` or `model/stl`, and two
+thumbnailers claiming the same MIME type is confusing.
 
-#### When a distribution already registers another thumbnailer
-
-**It's probably fine.** But if problems crop up, here's a potential solution.
-
-Distributions may ship `other thumbnailers` for `model/3mf`, and two thumbnailers
-claiming the same MIME type is undefined behaviour, so to remove the 3MF claim
-from the other ones:
+So to remove the `model/3mf` claim, for example:
 
 ```
 sudo sed -i 's/;\?model\/3mf;;*//; s/^MimeType=model\/3mf;/MimeType=/' \
     /usr/share/thumbnailers/[name of other .thumbnailer]
+```
+
+Or the same for `model/stl`:
+
+```
+sudo sed -i 's/;\?model\/stl;;*//; s/^MimeType=model\/stl;/MimeType=/' \
+    /usr/share/thumbnailers/[name of other .thumbnailer]
+```
+
+Clear thumbnail cache & restart the file manager.
+
+```
 rm -rf ~/.cache/thumbnails/*
 nautilus -q
 ```
+
+Or simply uninstall offending thumbnailer files & package(s).
 
 #### KDE (Dolphin)
 
@@ -180,7 +175,6 @@ result into the shared cache:
 ```
 
 #### Other Linux packages
-#### Other Linux packages
 
 The RPM and the DEB install `/usr/bin/3mfthumb` and
 `/usr/share/thumbnailers/3mf.thumbnailer`, so they work with the sandbox as
@@ -203,8 +197,8 @@ format and read the model from a file using `ReadFromFile()`. Finally, we query 
 `HasPackageThumbnailAttachment()` and `GetPackageThumbnailAttachment()` methods to retrieve the thumbnail 
 attachment and write it to a file using `WriteToFile()`.
 
-When a package carries no preview image (many slicers only embed one on
-export), the build items are traversed instead: component transforms are
+When a package carries no preview image (slicers can be configured to embed them),
+the mesh is traversed instead: component transforms are
 composed (including objects stored in separate `p:path` model parts), the
 model is viewed from a 35 degree yaw / 30 degree elevation orbit camera with
 Lambert shading, painted back to front through Cairo. Material colours from
@@ -408,11 +402,26 @@ sandbox that mounts only `/usr`, `/proc` and `/dev` (no `$HOME`, no
 `/usr/local`) and execs the program by name through the caller's `PATH`. The
 binary therefore has to be installed as `/usr/bin/3mfthumb`, which is what
 `sudo make install`, the RPM and the DEB do; a `~/.local/bin` or
-`/usr/local/bin` install is never found and Nautilus shows no preview. The
+`/usr/local/bin` install was never found and Nautilus showed no preview. It actually froze. The
 sandbox passes a plain path (`%i` is rewritten to
 `/tmp/gnome-desktop-file-to-thumbnail.3mf`), and `3mfthumb` accepts both that
-and a `file://` URI with percent-escaped characters, so a plain path works
-too.
+and `file://` URIs with percent-escaped characters, so plain paths work too.
+
+**Ad:** If you'd like to run something in a sandbox ^^^ like the above ^^^
+or put AI in a sandbox, check out [my sbx project](https://github.com/themanyone/sbx).
+But please note that a sandbox is for safety, not security. It prevents accidental
+file access. This is old news. But since AI companies still haven't figured it out:
+**Attention: Malicious AI software can get around it.**
+
+The actual `bwrap` command that Nautilus ends up running looks like this:
+
+```
+bwrap --ro-bind /usr /usr --ro-bind-try /etc/ld.so.cache \
+      --symlink /usr//bin /bin --symlink /usr//lib64 /lib64 ... \
+      --proc /proc --dev /dev --chdir / --unshare-all --die-with-parent \
+      --ro-bind /path/to/model.3mf /tmp/gnome-desktop-file-to-thumbnail.3mf \
+      3mfthumb /tmp/gnome-desktop-file-to-thumbnail.3mf /tmp/gnome-desktop-thumbnailer.png
+```
 
 ## Known Issues
 
