@@ -22,13 +22,16 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
+#include <iterator>
 #include <string>
 #include <vector>
 #if !defined(WIN32) && !defined(_WIN32)
 #include <cairo.h>
 #endif
 #include "win-shellext/renderer.h"
+#include "win-shellext/gltf.h"
 #if __cplusplus >= 201703L // Check if C++17 or later is supported
 #include <filesystem>
 namespace fs = std::filesystem;
@@ -48,11 +51,17 @@ bool writePixels(const std::string &outputFilename, int size,
     return false;
   }
   cairo_t *cr = cairo_create(surface);
+  cairo_set_source_rgba(cr, 0, 0, 0, 0);
+  cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+  cairo_paint(cr);
   for (int y = 0; y < size; ++y)
     for (int x = 0; x < size; ++x) {
       const size_t i = (static_cast<size_t>(y) * size + x) * 4;
-      cairo_set_source_rgb(cr, pixels[i] / 255.0, pixels[i + 1] / 255.0,
-                           pixels[i + 2] / 255.0);
+      const double alpha = pixels[i + 3] / 255.0;
+      if (alpha <= 0)
+        continue;
+      cairo_set_source_rgba(cr, pixels[i] / 255.0, pixels[i + 1] / 255.0,
+                            pixels[i + 2] / 255.0, alpha);
       cairo_rectangle(cr, x, y, 1, 1);
       cairo_fill(cr);
     }
@@ -69,9 +78,13 @@ bool writePixels(const std::string &outputFilename, int size,
 
 /// Paint the shared renderer's RGBA buffer into a cairo surface and save it.
 bool renderThumbnail(Lib3MF::PModel model, const std::string &outputFilename,
-                     int size) {
+                     int size,
+                     const threemf::render::RenderColors &colors =
+                         threemf::render::RenderColors(),
+                     const threemf::render::ViewRotation &rotation =
+                         threemf::render::ViewRotation()) {
   std::vector<uint8_t> pixels;
-  if (!threemf::render::renderToRGBA(model, size, pixels))
+  if (!threemf::render::renderToRGBA(model, size, pixels, colors, rotation))
     return false;
   return writePixels(outputFilename, size, pixels);
 }
@@ -79,9 +92,40 @@ bool renderThumbnail(Lib3MF::PModel model, const std::string &outputFilename,
 /// STL files carry no embedded preview, so they always go through the
 /// renderer.
 bool renderSTLThumbnail(const std::string &filename,
-                        const std::string &outputFilename, int size) {
+                        const std::string &outputFilename, int size,
+                        const threemf::render::RenderColors &colors =
+                            threemf::render::RenderColors(),
+                        const threemf::render::ViewRotation &rotation =
+                            threemf::render::ViewRotation()) {
   std::vector<uint8_t> pixels;
-  if (!threemf::render::renderSTLToRGBA(filename, size, pixels))
+  if (!threemf::render::renderSTLToRGBA(filename, size, pixels, colors,
+                                        rotation))
+    return false;
+  return writePixels(outputFilename, size, pixels);
+}
+
+/// Binary glTF: export tools sometimes keep a preview in the asset's extras,
+/// and the same flat-shaded renderer covers the rest.
+bool renderGLBThumbnail(const std::string &filename,
+                        const std::string &outputFilename, int size,
+                        bool forceRender,
+                        const threemf::render::RenderColors &colors =
+                            threemf::render::RenderColors(),
+                        const threemf::render::ViewRotation &rotation =
+                            threemf::render::ViewRotation()) {
+  std::ifstream input(filename, std::ios::binary);
+  std::string data((std::istreambuf_iterator<char>(input)),
+                   std::istreambuf_iterator<char>());
+  std::vector<uint8_t> image;
+  if (!input.bad() && !forceRender &&
+      threemf::gltf::embeddedThumbnail(filename, data, image)) {
+    std::ofstream output(outputFilename, std::ios::binary);
+    output.write(reinterpret_cast<const char *>(image.data()),
+                 static_cast<std::streamsize>(image.size()));
+    return output.good();
+  }
+  std::vector<uint8_t> pixels;
+  if (!threemf::gltf::renderGLBToRGBA(filename, size, pixels, colors, rotation))
     return false;
   return writePixels(outputFilename, size, pixels);
 }
@@ -175,10 +219,62 @@ std::string md5Hex(const std::string &text) {
   return hex;
 }
 
+/// Parses #rgb, #rrggbb, #rrggbbaa or the same without the '#'. Returns
+/// false for anything else; an alpha channel is accepted but ignored because
+/// these colours are always opaque. Writes the result into ``rgb``.
+bool parseColor(const std::string &text, std::vector<uint8_t> &rgb) {
+  std::string digits = text;
+  if (!digits.empty() && digits[0] == '#')
+    digits.erase(0, 1);
+  for (char c : digits)
+    if (!std::isxdigit(static_cast<unsigned char>(c)))
+      return false;
+  if (digits.size() == 3 || digits.size() == 4) {
+    std::string full;
+    for (char c : digits)
+      full += std::string(2, c);
+    digits = full;
+  }
+  if (digits.size() != 6 && digits.size() != 8)
+    return false;
+  rgb.clear();
+  for (size_t i = 0; i < 6; i += 2)
+    rgb.push_back(
+        static_cast<uint8_t>(std::stoi(digits.substr(i, 2), nullptr, 16)));
+  return true;
+}
+
+void printUsage(std::ostream &out) {
+  out << "Usage: 3mfthumb [-r] [-c] [-s N] [-x DEG] [-y DEG] [-z DEG] "
+         "[-f RRGGBB] [-b RRGGBB] <file.3mf|file.stl|file.glb> "
+         "[output.png]\n"
+         "  -r, --render      ignore the embedded preview and render the"
+         " meshes\n"
+         "  -c, --cache       also store the thumbnail in the shared cache, as"
+         " KDE expects\n"
+         "  -s, --size        render edge length in pixels (default 256,"
+         " maximum 4096)\n"
+         "  -x, --roll        roll the picture, in degrees (default 0)\n"
+         "  -y, --tilt        camera elevation, 0 to 90; 0 is head-on, 90 is\n"
+         "                    directly overhead (default 30)\n"
+         "  -z, --spin        swing the camera about the vertical axis; 0"
+         " faces\n"
+         "                    the model's front (default 35)\n"
+         "  -f, --foreground  colour, as RRGGBB or #RRGGBB, for triangles"
+         " without a\n"
+         "                    material colour (STL and most glTF); default is"
+         " shaded grey\n"
+         "  -b, --background  background colour, same syntax; default is"
+         " transparent\n"
+         "  -h, --help        show this help and exit" << std::endl;
+}
+
 int main(int argc, char **argv) {
   bool forceRender = false;
   bool useCommonThumbnailCache = false;
   int size = 256;
+  threemf::render::ViewRotation rotation;
+  std::vector<uint8_t> foreground, background;
   int argIndex = 1;
   for (; argIndex < argc && argv[argIndex][0] == '-' && argv[argIndex][1];
        ++argIndex) {
@@ -193,6 +289,42 @@ int main(int argc, char **argv) {
         if (size < 16 || size > 4096)
           size = 256;
       }
+    } else if (option == "-x" || option == "--roll") {
+      if (argIndex + 1 >= argc) {
+        std::cerr << "3mfthumb: --roll wants an angle in degrees" << std::endl;
+        return 1;
+      }
+      rotation.x = std::atof(argv[++argIndex]);
+    } else if (option == "-y" || option == "--tilt") {
+      const bool haveValue = argIndex + 1 < argc;
+      const double degrees = haveValue ? std::atof(argv[++argIndex]) : -1;
+      if (!haveValue || degrees < 0 || degrees > 90) {
+        std::cerr << "3mfthumb: --tilt wants an angle from 0 to 90 degrees"
+                  << std::endl;
+        return 1;
+      }
+      rotation.y = degrees;
+    } else if (option == "-z" || option == "--spin") {
+      if (argIndex + 1 >= argc) {
+        std::cerr << "3mfthumb: --spin wants an angle in degrees" << std::endl;
+        return 1;
+      }
+      rotation.z = std::atof(argv[++argIndex]);
+    } else if (option == "-f" || option == "--foreground") {
+      if (argIndex + 1 >= argc || !parseColor(argv[++argIndex], foreground)) {
+        std::cerr << "3mfthumb: --foreground wants a hex colour, such as"
+                     " ff0000 or #ff0000" << std::endl;
+        return 1;
+      }
+    } else if (option == "-b" || option == "--background") {
+      if (argIndex + 1 >= argc || !parseColor(argv[++argIndex], background)) {
+        std::cerr << "3mfthumb: --background wants a hex colour, such as"
+                     " 1e1e1e or #ffffff" << std::endl;
+        return 1;
+      }
+    } else if (option == "-h" || option == "--help") {
+      printUsage(std::cout);
+      return 0;
     } else if (option == "--") {
       ++argIndex;
       break;
@@ -201,6 +333,13 @@ int main(int argc, char **argv) {
       return 1;
     }
   }
+  // Absent colours stay null, which keeps the shaded grey triangles and the
+  // transparent background.
+  threemf::render::RenderColors colors;
+  if (foreground.size() == 3)
+    colors.foreground = foreground.data();
+  if (background.size() == 3)
+    colors.background = background.data();
   // Without an output path the image goes to the shared cache (-c), or
   // wherever Windows' shell extension expects it.
 #ifdef WIN32
@@ -209,14 +348,7 @@ int main(int argc, char **argv) {
   const bool needOutput = !useCommonThumbnailCache;
 #endif
   if (argc - argIndex < 1 || (argc - argIndex < 2 && needOutput)) {
-    std::cout << "Usage: 3mfthumb [-r] [-c] [-s N] <file.3mf|file.stl>"
-                 " [output.png]\n"
-                 "  -r, --render  ignore the embedded preview and render the"
-                 " meshes\n"
-                 "  -c, --cache   also store the thumbnail in the shared"
-                 " cache, as KDE expects\n"
-                 "  -s, --size    render edge length in pixels (default 256,"
-                 " maximum 4096)" << std::endl;
+    printUsage(std::cerr);
     return 1;
   }
   // Get file names from command-line arguments
@@ -290,14 +422,49 @@ int main(int argc, char **argv) {
   };
   try
   {
-    // STL has no embedded preview, so it never needs Lib3MF.
+    // STL has no embedded preview, so it never needs Lib3MF. Thumbnailers
+    // may hand over a bare path or a URI, for any file: report what was
+    // opened, because "could not render" alone sends people to the wrong
+    // place when the path is wrong.
     if (extensionOf(filename) == ".stl") {
       if (writeFilename.empty())
         return 0;
-      if (!renderSTLThumbnail(filename, writeFilename, size))
-        std::cerr << "3mfthumb: could not render " << filename << std::endl;
+      if (!renderSTLThumbnail(filename, writeFilename, size, colors,
+                              rotation)) {
+        std::error_code code;
+        if (!fs::exists(filename, code))
+          std::cerr << "3mfthumb: no such file: " << filename << std::endl;
+        else
+          std::cerr << "3mfthumb: could not render " << filename << std::endl;
+      }
       copyToCache();
       return 0;
+    }
+    // glTF has no Lib3MF reader either: use an embedded preview when the
+    // asset carries one, and render the scene otherwise.
+    if (extensionOf(filename) == ".glb") {
+      if (writeFilename.empty())
+        return 0;
+      if (renderGLBThumbnail(filename, writeFilename, size, forceRender,
+                             colors, rotation)) {
+        copyToCache();
+      } else {
+        std::error_code code;
+        if (!fs::exists(filename, code))
+          std::cerr << "3mfthumb: no such file: " << filename << std::endl;
+        else
+          std::cerr << "3mfthumb: could not render " << filename << std::endl;
+      }
+      return 0;
+    }
+    // Anything left is read by Lib3MF, which fails on a missing file with
+    // a bare "could not be opened"; name the path it was given.
+    {
+      std::error_code code;
+      if (!fs::exists(filename, code)) {
+        std::cerr << "3mfthumb: no such file: " << filename << std::endl;
+        return 0;
+      }
     }
 #if defined(_WIN32)
     // Windows: the dynamic binding wants an explicit DLL name, and
@@ -331,7 +498,7 @@ int main(int argc, char **argv) {
     } else if (!writeFilename.empty()) {
       // No embedded preview (or -r): render the build meshes with Cairo.
       try {
-        if (renderThumbnail(model, writeFilename, size))
+        if (renderThumbnail(model, writeFilename, size, colors, rotation))
           copyToCache();
       } catch (std::exception &e) {
         std::cerr << "3mfthumb: render failed: " << e.what() << std::endl;

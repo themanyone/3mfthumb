@@ -26,6 +26,7 @@
 #include <KPluginFactory>
 
 #include <QBuffer>
+#include <QFile>
 #include <QPixmap>
 
 #include <algorithm>
@@ -34,6 +35,7 @@
 #include <string>
 #include <vector>
 
+#include "win-shellext/gltf.h"
 #include "win-shellext/renderer.h"
 
 K_PLUGIN_CLASS_WITH_JSON(ThumbnailCreator, "3mfthumbnail.json")
@@ -53,6 +55,30 @@ bool decodePreview(const Lib3MF::PAttachment &attachment, QImage &image) {
     return false;
   return image.loadFromData(QByteArray(reinterpret_cast<const char *>(bytes.data()),
                                        static_cast<int>(bytes.size())));
+}
+
+/// Binary glTF: the asset's own preview when it carries one, otherwise the
+/// same renderer as the other formats.
+bool renderGLB(const std::string &filename, int size, QImage &image) {
+  QFile file(QString::fromStdString(filename));
+  if (!file.open(QIODevice::ReadOnly))
+    return false;
+  const QByteArray data = file.readAll();
+  std::vector<uint8_t> bytes;
+  if (threemf::gltf::embeddedThumbnail(filename,
+                                       std::string(data.constData(), data.size()),
+                                       bytes)) {
+    image.loadFromData(reinterpret_cast<const uchar *>(bytes.data()),
+                       static_cast<int>(bytes.size()));
+    return !image.isNull();
+  }
+  std::vector<uint8_t> pixels;
+  if (!threemf::gltf::renderGLBToRGBA(filename, size, pixels))
+    return false;
+  image = QImage(reinterpret_cast<const uchar *>(pixels.data()), size, size,
+                 size * 4, QImage::Format_RGBA8888)
+              .copy();
+  return !image.isNull();
 }
 
 /// Renders the build items (3MF) or the triangles (STL) at ``size`` pixels.
@@ -95,6 +121,7 @@ KIO::ThumbnailResult ThumbnailCreator::create(
   std::string extension = path.section('.', -1).toLower().toStdString();
   const bool isSTL = extension == "stl";
   const bool is3MF = extension == "3mf" || extension == "3mfzip";
+  const bool isGLB = extension == "glb";
 
   QImage image;
   if (is3MF) {
@@ -111,6 +138,8 @@ KIO::ThumbnailResult ThumbnailCreator::create(
       renderMesh(path.toStdString(), false, target.width(), image);
   } else if (isSTL) {
     renderMesh(path.toStdString(), true, target.width(), image);
+  } else if (isGLB) {
+    renderGLB(path.toStdString(), target.width(), image);
   } else {
     return KIO::ThumbnailResult::fail();
   }

@@ -223,6 +223,25 @@ struct Projected {
   double depth;
 };
 
+/// Optional colours for rendered images. ``foreground`` paints triangles that
+/// carry no material colour (all STL and glTF meshes); ``background`` is
+/// composited behind the model, or left transparent when unset.
+struct RenderColors {
+  const uint8_t *foreground = nullptr;
+  const uint8_t *background = nullptr;
+};
+
+/// Camera aim in degrees, absolute rather than relative to a default view.
+/// ``x`` rolls the picture, ``y`` is the elevation with 0 looking at the
+/// model head-on and 90 looking straight down, and ``z`` swings the camera
+/// about the vertical axis, 0 facing the model's front and +35 (the default)
+/// the view the renderer has always used, 30 degrees up and to the right.
+struct ViewRotation {
+  double x = 0.0;
+  double y = 30.0;
+  double z = 35.0;
+};
+
 /// Collect the triangles of one mesh object that ``objectID`` names. Build
 /// items are skipped on purpose: slicers store a copy of the model for the
 /// build section (already arranged on the plate) plus the originals as plain
@@ -338,11 +357,41 @@ inline bool readSTL(const std::string &filename, std::vector<Face> &faces) {
 
 /// Renders already-flattened triangle soup into an RGBA pixel buffer; this
 /// is the shared tail of renderToRGBA and renderSTLToRGBA. The buffer is
-/// row-major, top row first, alpha always 255, on a white background.
+/// row-major, top row first. The background is transparent, or the requested
+/// colour; triangle edges are blended against it. Triangles without a
+/// material colour use the requested foreground colour when given.
 inline bool renderFacesToRGBA(const std::vector<Face> &faces, int size,
-                              std::vector<uint8_t> &pixels) {
+                              std::vector<uint8_t> &pixels,
+                              const RenderColors &colors = RenderColors(),
+                              const ViewRotation &rotation = ViewRotation()) {
   if (size <= 0 || faces.empty())
     return false;
+
+  // The aim is absolute: ``z`` is the camera's yaw about the plate's
+  // vertical axis, 0 facing the model's front, and ``y`` its elevation above
+  // the plate, 0 head-on and 90 straight overhead. Unless it sits exactly
+  // overhead, the camera keeps world +Z upright on screen, so a turned view
+  // never tips sideways. ``x`` then rolls that picture.
+  const double pi = 3.14159265358979323846;
+  const double pi180 = pi / 180.0;
+  const double yaw = rotation.z * pi180;
+  const double elevation = rotation.y * pi180;
+  const double cy = std::cos(yaw), sy = std::sin(yaw);
+  const double cp = std::cos(elevation), sp = std::sin(elevation);
+  // "back" points from the model towards the camera; "right" and "up" are
+  // the screen axes, with "up" as close to world +Z as possible.
+  const double right[3] = {-sy, cy, 0};
+  const double up[3] = {-cy * sp, -sy * sp, cp};
+  const double back[3] = {cy * cp, sy * cp, sp};
+  const double roll = rotation.x * pi180;
+  const double cr = std::cos(roll), sr = std::sin(roll);
+  // Roll about the line of sight turns the screen axes, not the model.
+  const double rolledRight[3] = {right[0] * cr + up[0] * sr,
+                                 right[1] * cr + up[1] * sr,
+                                 right[2] * cr + up[2] * sr};
+  const double rolledUp[3] = {up[0] * cr - right[0] * sr,
+                              up[1] * cr - right[1] * sr,
+                              up[2] * cr - right[2] * sr};
 
   double minCorner[3] = {std::numeric_limits<double>::max(),
                          std::numeric_limits<double>::max(),
@@ -368,20 +417,10 @@ inline bool renderFacesToRGBA(const std::vector<Face> &faces, int size,
       radius = std::max(radius, std::sqrt(dx * dx + dy * dy + dz * dz));
     }
 
-  // Orbit camera: yaw 35 degrees to the right of +X, elevation 30 degrees
-  // above the plate. "back" points from the model towards the camera;
-  // "right" and "up" are the screen axes.
-  const double pi = 3.14159265358979323846;
-  const double yaw = 35.0 * pi / 180.0, pitch = 30.0 * pi / 180.0;
-  const double cy = std::cos(yaw), sy = std::sin(yaw);
-  const double cp = std::cos(pitch), sp = std::sin(pitch);
-  const double right[3] = {-sy, cy, 0};
-  const double up[3] = {-cy * sp, -sy * sp, cp};
-  const double back[3] = {cy * cp, sy * cp, sp};
-  // Light from the upper left of the camera frame, rotated into world space.
-  const double light[3] = {-right[0] + up[0] + back[0],
-                           -right[1] + up[1] + back[1],
-                           -right[2] + up[2] + back[2]};
+  // Light from the upper left of the camera frame, rolled with it.
+  const double light[3] = {-rolledRight[0] + rolledUp[0] + back[0],
+                           -rolledRight[1] + rolledUp[1] + back[1],
+                           -rolledRight[2] + rolledUp[2] + back[2]};
   const double lightLength =
       std::sqrt(light[0] * light[0] + light[1] * light[1] + light[2] * light[2]);
   const double lightUnit[3] = {light[0] / lightLength, light[1] / lightLength,
@@ -405,8 +444,10 @@ inline bool renderFacesToRGBA(const std::vector<Face> &faces, int size,
     for (int i = 0; i < 3; ++i) {
       const double in[3] = {f.v[i].x - cameraX, f.v[i].y - cameraY,
                             f.v[i].z - cameraZ};
-      const double x = in[0] * right[0] + in[1] * right[1] + in[2] * right[2];
-      const double y = in[0] * up[0] + in[1] * up[1] + in[2] * up[2];
+      const double x = in[0] * rolledRight[0] + in[1] * rolledRight[1] +
+                       in[2] * rolledRight[2];
+      const double y = in[0] * rolledUp[0] + in[1] * rolledUp[1] +
+                       in[2] * rolledUp[2];
       // Distance in front of the camera along the view axis.
       const double depth = -(in[0] * back[0] + in[1] * back[1] + in[2] * back[2]);
       if (depth <= 1e-6) {
@@ -427,7 +468,9 @@ inline bool renderFacesToRGBA(const std::vector<Face> &faces, int size,
                    });
 
   const size_t stride = static_cast<size_t>(size) * 4;
-  std::vector<double> buffer(static_cast<size_t>(size) * size * 3, 255.0);
+  // R, G, B and coverage kept per pixel, premultiplied by coverage so that
+  // triangles can be composited over the transparent background.
+  std::vector<double> buffer(static_cast<size_t>(size) * size * 4, 0.0);
 
   // Rasterize one screen-space triangle with 4x4 supersampled coverage.
   const int subSamples = 4;
@@ -435,10 +478,16 @@ inline bool renderFacesToRGBA(const std::vector<Face> &faces, int size,
     const Face &f = *p.face;
     double r = f.r, g = f.g, b = f.b;
     if (r < 0) {
-      const double shade = shadeForNormal(f.v[0], f.v[1], f.v[2], lightUnit);
-      r = 0.62 * shade;
-      g = 0.70 * shade;
-      b = 0.82 * shade;
+      if (colors.foreground) {
+        r = colors.foreground[0] / 255.0;
+        g = colors.foreground[1] / 255.0;
+        b = colors.foreground[2] / 255.0;
+      } else {
+        const double shade = shadeForNormal(f.v[0], f.v[1], f.v[2], lightUnit);
+        r = 0.62 * shade;
+        g = 0.70 * shade;
+        b = 0.82 * shade;
+      }
     }
     double minX = std::min({p.v[0].x, p.v[1].x, p.v[2].x});
     double maxX = std::max({p.v[0].x, p.v[1].x, p.v[2].x});
@@ -475,25 +524,46 @@ inline bool renderFacesToRGBA(const std::vector<Face> &faces, int size,
         if (!covered)
           continue;
         const double alpha = static_cast<double>(covered) / (subSamples * subSamples);
-        const size_t offset = static_cast<size_t>(y) * static_cast<size_t>(size) * 3 +
-                              static_cast<size_t>(x) * 3;
+        const size_t offset = static_cast<size_t>(y) * static_cast<size_t>(size) * 4 +
+                              static_cast<size_t>(x) * 4;
         buffer[offset] = buffer[offset] * (1 - alpha) + r * 255.0 * alpha;
         buffer[offset + 1] = buffer[offset + 1] * (1 - alpha) + g * 255.0 * alpha;
         buffer[offset + 2] = buffer[offset + 2] * (1 - alpha) + b * 255.0 * alpha;
+        buffer[offset + 3] = buffer[offset + 3] * (1 - alpha) + 255.0 * alpha;
       }
     }
   }
 
-  pixels.assign(static_cast<size_t>(size) * size * 4, 255);
+  pixels.assign(static_cast<size_t>(size) * size * 4, 0);
   for (int y = 0; y < size; ++y) {
     for (int x = 0; x < size; ++x) {
-      const size_t src = (static_cast<size_t>(y) * size + x) * 3;
+      const size_t src = (static_cast<size_t>(y) * size + x) * 4;
       const size_t dst = static_cast<size_t>(y) * stride + static_cast<size_t>(x) * 4;
-      pixels[dst] = static_cast<uint8_t>(std::min(255.0, std::max(0.0, buffer[src])));
-      pixels[dst + 1] =
-          static_cast<uint8_t>(std::min(255.0, std::max(0.0, buffer[src + 1])));
-      pixels[dst + 2] =
-          static_cast<uint8_t>(std::min(255.0, std::max(0.0, buffer[src + 2])));
+      const double coverage = buffer[src + 3];
+      if (!colors.background) {
+        if (coverage <= 0)
+          continue;
+        // Undo the coverage premultiplication so edge pixels keep their
+        // colour.
+        const double scale = 255.0 / coverage;
+        pixels[dst] = static_cast<uint8_t>(
+            std::min(255.0, std::max(0.0, buffer[src] * scale)));
+        pixels[dst + 1] = static_cast<uint8_t>(
+            std::min(255.0, std::max(0.0, buffer[src + 1] * scale)));
+        pixels[dst + 2] = static_cast<uint8_t>(
+            std::min(255.0, std::max(0.0, buffer[src + 2] * scale)));
+        pixels[dst + 3] = static_cast<uint8_t>(
+            std::min(255.0, std::max(0.0, coverage)));
+        continue;
+      }
+      // Composite the transparent render onto an opaque background.
+      const double alpha = coverage / 255.0;
+      pixels[dst] = static_cast<uint8_t>(
+          std::min(255.0, buffer[src] + colors.background[0] * (1 - alpha)));
+      pixels[dst + 1] = static_cast<uint8_t>(
+          std::min(255.0, buffer[src + 1] + colors.background[1] * (1 - alpha)));
+      pixels[dst + 2] = static_cast<uint8_t>(
+          std::min(255.0, buffer[src + 2] + colors.background[2] * (1 - alpha)));
       pixels[dst + 3] = 255;
     }
   }
@@ -503,11 +573,13 @@ inline bool renderFacesToRGBA(const std::vector<Face> &faces, int size,
 /// Renders an STL file into an RGBA pixel buffer the same way renderToRGBA
 /// draws a 3MF model.
 inline bool renderSTLToRGBA(const std::string &filename, int size,
-                            std::vector<uint8_t> &pixels) {
+                            std::vector<uint8_t> &pixels,
+                            const RenderColors &colors = RenderColors(),
+                            const ViewRotation &rotation = ViewRotation()) {
   std::vector<Face> faces;
   if (!readSTL(filename, faces))
     return false;
-  return renderFacesToRGBA(faces, size, pixels);
+  return renderFacesToRGBA(faces, size, pixels, colors, rotation);
 }
 
 /// Flattens a model's build items into triangle soup.
@@ -524,12 +596,14 @@ inline void readModel(Lib3MF::PModel model, std::vector<Face> &faces) {
 /// Renders the model's build items. Returns false when there is nothing to
 /// draw.
 inline bool renderToRGBA(Lib3MF::PModel model, int size,
-                         std::vector<uint8_t> &pixels) {
+                         std::vector<uint8_t> &pixels,
+                         const RenderColors &colors = RenderColors(),
+                         const ViewRotation &rotation = ViewRotation()) {
   if (size <= 0)
     return false;
   std::vector<Face> faces;
   readModel(model, faces);
-  return renderFacesToRGBA(faces, size, pixels);
+  return renderFacesToRGBA(faces, size, pixels, colors, rotation);
 }
 
 /// Encodes an RGBA buffer made by renderToRGBA as a PNG file. Kept here so

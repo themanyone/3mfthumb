@@ -11,8 +11,13 @@ embedded thumbnail, it renders the meshes instead using `renderer.h`, the
 same code the command-line tool uses, so both platforms draw the same
 picture.
 
-It registers itself under `HKEY_CURRENT_USER\Software\Classes`, so no
-administrator rights are needed.
+It also previews `.glb`: glTF assets often keep a preview in their
+`extras`, and otherwise `gltf.h` turns the scene into the same triangle
+soup `renderer.h` draws for 3MF and STL.
+
+It registers itself for `.3mf` and `.glb` under
+`HKEY_CURRENT_USER\Software\Classes`, so no administrator rights are
+needed.
 
 ## Build (cross-compile from Linux with mingw-w64)
 

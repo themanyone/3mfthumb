@@ -30,9 +30,9 @@ one mesh renderer, `win-shellext/renderer.h`.
 ## Commands
 
 - `make` - build `3mfthumb`. Uses `pkg-config --cflags --libs lib3mf cairo`.
-  Deps: `lib3mf`, `libzip`, `zlib`, `cairo`. The Makefile has **no header
-  dependencies**, so after editing `win-shellext/renderer.h` run `make clean`
-  (otherwise `3mfthumb.o` is stale).
+  Deps: `lib3mf`, `libzip`, `zlib`, `cairo`. `3mfthumb.o` depends on `*.h` and
+  `win-shellext/*.h`, so header edits rebuild it; `make clean` is still the
+  safe reset when a build looks stale.
 - `make install` / `make uninstall` - **must be root** (`ROOT_INSTALL=0` refuses
   with an explanation). Installs to `PREFIX` (default `/usr`):
   `/usr/bin/3mfthumb` and `/usr/share/thumbnailers/3mf.thumbnailer`, then tries
@@ -53,7 +53,8 @@ one mesh renderer, `win-shellext/renderer.h`.
 - `debian/` is also a full `debhelper` source package (two binary packages,
   `rules` stages files itself). Only the `make-deb.sh` path has been exercised
   (on Fedora).
-- `./3mfthumb [-r] [-c] [-s N] file.3mf|file.stl [out.png]` - see CLI contract.
+- `./3mfthumb [-r] [-c] [-s N] [-x DEG] [-y DEG] [-z DEG] [-f RRGGBB]
+  [-b RRGGBB] file.3mf|file.stl|file.glb [out.png]` - see CLI contract.
 - **KDE plugin**: `cmake -S kde-shellext -B build-kde && cmake --build build-kde`.
   Needs Qt 6, `KF6KIO` and ECM-less CMake (see gotchas). Installation paths are
   set in `kde-shellext/CMakeLists.txt`.
@@ -80,7 +81,8 @@ sample and inspect the output (`file out.png`, `identify -format '%[fx:mean]'`).
 
 ## CLI contract
 
-`3mfthumb [-r] [-c] [-s N] <file.3mf|file.stl> [output.png]`
+`3mfthumb [-r] [-c] [-s N] [-x DEG] [-y DEG] [-z DEG] [-f RRGGBB] [-b RRGGBB]
+<file.3mf|file.stl> [output.png]`
 
 - Options come before the filenames; `--` ends them. Unknown options print an
   error and return `1`.
@@ -94,10 +96,35 @@ sample and inspect the output (`file out.png`, `identify -format '%[fx:mean]'`).
   `x-large` group selected by `-s`. The MD5 is bundled in `3mfthumb.cpp`
   (`md5Hex`); cache write failures are silent and the exit code stays `0`.
 - `-s/--size N` - render edge length, default 256, clamped to 16..4096.
+- `-x/--roll DEG` - rolls the view about its line of sight, any value; a
+  missing value is an error.
+- `-y/--tilt DEG` - camera elevation: 0 looks at the model head-on, 90 looks
+  straight down. Values outside 0..90, and a missing value, print an error
+  and return `1`.
+- `-z/--spin DEG` - camera yaw about the vertical axis: 0 faces the model's
+  front, 35 (the default) is the historical view from the right. Any value is
+  accepted and a missing one is an error.
+- All three are **absolute** aims, not offsets: `-x 0 -y 30 -z 35` renders
+  exactly what the renderer always did, so output is unchanged unless a flag
+  is passed. They ride in `render::ViewRotation` and only apply to rendered
+  images, never to a copied embedded preview. The camera never rotates the
+  model: it orbits it with world +Z kept upright (roll then spins the screen
+  axes), so every aim frames the model the same way.
+- `-f/--foreground RRGGBB` - colour for triangles that carry no material
+  colour (all STL, most glTF); 3MF material colours still win. Default is the
+  shaded grey-blue flat colour.
+- `-b/--background RRGGBB` - composites rendered images onto an opaque
+  background; default is transparent. Both colour flags accept `#rrggbb`,
+  `#rgb` and an ignored trailing alpha, have no effect on embedded previews
+  (copied verbatim), print an error for bad values and return `1`.
+- `-h/--help` prints the usage text and returns `0`; missing arguments print
+  the same text to stderr and return `1`.
 - Input may be a `file://` URI (percent-escapes decoded, `file://localhost/`
   handled), because GNOME hands thumbnailers a URI inside its sandbox.
 - STL input is selected by a case-insensitive `.stl` extension, bypasses
   Lib3MF entirely, and always renders (`-r` is implicit).
+- `.glb` input also bypasses Lib3MF: a preview in the asset's `extras` wins
+  (unless `-r`), otherwise the scene is rendered by `win-shellext/gltf.h`.
 - Errors go to stderr prefixed with `3mfthumb: `.
 
 **Gotcha:** exit code `0` does not imply an output file was written (a 3MF
@@ -107,26 +134,37 @@ non-empty output file indicates success. A STL that fails to parse prints
 
 ## Architecture / control flow
 
-`3mfthumb.cpp` (~350 lines) hands the shared renderer either a
-`Lib3MF::PModel` or an STL path and then writes the RGBA buffer out:
+`3mfthumb.cpp` (~380 lines) hands the shared renderer either a
+`Lib3MF::PModel`, an STL path or a GLB path and then writes the RGBA buffer
+out:
 
 1. Parse options, decode `file://` URIs, lower-case the extension.
 2. `.stl` -> `threemf::render::renderSTLToRGBA()` (parses binary STL, 84-byte
    header + count + 50-byte records, size-checked, else ASCII STL) ->
    `renderFacesToRGBA()`. Returns early; Lib3MF is never loaded.
-3. Otherwise `Lib3MF::CWrapper::loadLibrary()` (the **implicit** API,
+3. `.glb` -> `renderGLBThumbnail()`: `threemf::gltf::embeddedThumbnail()`
+   (extras `thumbnail`/`preview`/`thumb`, path or data URI) is copied out
+   verbatim, else `threemf::gltf::renderGLBToRGBA()` (GLB chunks -> JSON
+   members -> accessors -> node transforms -> `Face`s) ->
+   `renderFacesToRGBA()`. Returns early; Lib3MF is never loaded.
+4. Otherwise `Lib3MF::CWrapper::loadLibrary()` (the **implicit** API,
    `lib3mf_implicit.hpp`, resolves symbols at runtime), `CreateModel()`,
    `QueryReader("3mf")->ReadFromFile()`, then
    `HasPackageThumbnailAttachment()`/`GetPackageThumbnailAttachment()` and
    `WriteToFile()`.
-4. No preview or `-r` -> `threemf::render::renderToRGBA()` ->
+5. No preview or `-r` -> `threemf::render::renderToRGBA()` ->
    `renderFacesToRGBA()`; `writePixels()` paints it into a Cairo surface on
    Linux or uses `writePNG()` on Windows.
-5. All Lib3MF calls throw `std::exception`; caught and reported as exit `1`.
+6. All Lib3MF calls throw `std::exception`; caught and reported as exit `1`.
 
 `renderer.h` structure: `Face`/`Vertex`, `collectFaces`/`collectObject` (3MF
 build items), `readSTL`, `renderFacesToRGBA` (camera, painter's sort,
-4x4 supersampled rasteriser), `renderSTLToRGBA`, `readModel`/`renderToRGBA`,
+4x4 supersampled rasteriser; uncovered pixels stay transparent, so the PNG
+has a transparent background and anti-aliased edges; `RenderColors` carries
+optional foreground/background colours; `ViewRotation` is an absolute camera
+orbit: elevation, yaw and roll),
+`renderSTLToRGBA`,
+`readModel`/`renderToRGBA`,
 `writePNG`. Material colours from `basematerials`/`m:colorgroup` are used;
 there are no textures, beam lattices or level sets. `Helix.3mf` from the SDK
 exercises the renderer; real binary STLs (e.g. Blender exports) are good
@@ -149,6 +187,12 @@ end-to-end samples.
 - **Windows argument count**: under `#ifdef WIN32` one argument is enough
   (`3mfthumb <file.3mf>` writes where Explorer expects it); on other builds a
   single argument is only accepted with `-c`.
+- **`win-shellext/gltf.h` is shared by the CLI, the KDE plugin and the Windows
+  shell extension**, so keep it dependency-free (it only includes
+  `renderer.h`). It reads GLB by hand (chunk table plus targeted JSON
+  scanning, no JSON library) and reuses `render::Affine`/`Face` so the 3MF and
+  glTF paths end in the same rasteriser. Draco/meshopt-compressed primitives
+  are skipped, not decoded.
 - **The thumbnailer cache**: stale entries block new previews after an upgrade.
   The Makefile never wipes `/home/*/.cache/thumbnails` (root must not touch a
   user's cache); document `rm -rf $HOME/.cache/thumbnails/*`. A failed file

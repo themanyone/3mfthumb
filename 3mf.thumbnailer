@@ -1,4 +1,4 @@
 [Thumbnailer Entry]
 TryExec=3mfthumb
 Exec=3mfthumb %i %o
-MimeType=model/stl;model/3mf;application/vnd.ms-3mfdocument;model/stl;application/sla;
+MimeType=model/stl;model/3mf;application/vnd.ms-3mfdocument;application/sla;model/gltf-binary;model/gltf+json;
