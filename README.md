@@ -1,6 +1,6 @@
 # 3mfthumb
 
-Show 3MF previews in file managers: use the embedded thumbnail image, or render the meshes when there is none.
+Show 3MF and STL previews in file managers: use the package's embedded thumbnail image, or render the meshes when there is none.
 
 Preview images are great. As .3mf is supposed to be the universal 3D Printing standard, and adoption is expected to be rapid, we should be able to see embedded thumbnail image previews for them in file managers like `pcmanfm`, `nautilus`, or even Windows `explorer`.
 
@@ -10,6 +10,19 @@ Preview images are great. As .3mf is supposed to be the universal 3D Printing st
 </figure>
 
 ## Changelog
+
+**Unreleased**
+
+- Render `.stl` files (binary and ASCII) with the same renderer, and register
+  `model/stl` / `application/sla` in `3mf.thumbnailer`. STL has no embedded
+  preview, so it is always rendered. `3mfthumb model.stl out.png` now works.
+- New `-c` / `--cache` writes the image into the shared freedesktop thumbnail
+  cache (`~/.cache/thumbnails/<group>/<md5 of file URI>.png`), and `-s N` /
+  `--size N` sets the render size (default 256). The output path may then be
+  omitted.
+- New KDE thumbnail plugin (`kde-shellext/`), so Dolphin shows 3MF and STL
+  previews. Built with CMake and installed by `make install` when Qt 6 and
+  KF6 KIO are present.
 
 **1.2.2**
 
@@ -124,17 +137,45 @@ file access. This is old news. But since AI companies still haven't figured it o
 
 **It's probably fine.** But if problems crop up, here's a potential solution.
 
-Distributions may ship `stl-thumb` for `model/3mf`, and two thumbnailers
+Distributions may ship `other thumbnailers` for `model/3mf`, and two thumbnailers
 claiming the same MIME type is undefined behaviour, so to remove the 3MF claim
-from the other one:
+from the other ones:
 
 ```
 sudo sed -i 's/;\?model\/3mf;;*//; s/^MimeType=model\/3mf;/MimeType=/' \
-    /usr/share/thumbnailers/stl-thumb.thumbnailer
+    /usr/share/thumbnailers/[name of other .thumbnailer]
 rm -rf ~/.cache/thumbnails/*
 nautilus -q
 ```
 
+#### KDE (Dolphin)
+
+KDE does not use freedesktop `.thumbnailer` files; Dolphin, the file dialog
+and `kio-extras` load thumbnail plugins from a shared library. `3mfthumb` ships
+one in `kde-shellext/`: it draws with the same mesh renderer, returns the 3MF
+package thumbnail when the file has one, and lets KIO write the shared
+thumbnail cache (`CacheThumbnail=true`).
+
+`make install` builds and installs it when CMake, Qt 6 and KF6 KIO are
+installed, otherwise it prints a note and skips it. To do it by hand:
+
+```
+cmake -S kde-shellext -B build-kde
+cmake --build build-kde
+sudo cmake --install build-kde
+```
+
+That leaves `lib3mfthumbnail.so` and `3mfthumbnail.json` in Qt's
+`thumbcreator` plugin directory (`/usr/lib64/qt6/plugins/thumbcreator` on
+Fedora). The binary is also usable from a terminal or script, which copies the
+result into the shared cache:
+
+```
+3mfthumb -c model.stl                  # 256px into ~/.cache/thumbnails/large/
+3mfthumb -c -s 512 model.stl out.png   # 512px into x-large/ as well
+```
+
+#### Other Linux packages
 #### Other Linux packages
 
 The RPM and the DEB install `/usr/bin/3mfthumb` and
