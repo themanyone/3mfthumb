@@ -1,3 +1,10 @@
+3mfthumb (1.2.4-1) unstable; urgency=medium
+
+  * New upstream release: -f now shades the surface colour per face, and
+    option values may be written joined to their flag (-z90, -s128).
+
+ -- Henry Kroll III <nospam@thenerdshow.com>  Sun, 18 Oct 2026 00:00:00 -0800
+
 3mfthumb (1.2.3-1) unstable; urgency=medium
 
   * New upstream release: previews for .glb (binary glTF) models, STL

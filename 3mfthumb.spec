@@ -1,5 +1,5 @@
 Name:           3mfthumb
-Version:        1.2.3
+Version:        1.2.4
 Release:        1%{?dist}
 Summary:        Embedded 3MF thumbnail extractor for desktop file managers
 # The KDE plugin lives in its own subpackage so the Qt 6 and KIO dependencies
@@ -98,6 +98,11 @@ install -pm 644 Makefile 3mfthumb.cpp 3mf.thumbnailer LICENSE \
 %endif
 
 %changelog
+* Sun Oct 18 2026 Henry Kroll III <nospam@thenerdshow.com> - 1.2.4-1
+- Shade the -f foreground colour per face instead of painting every
+  triangle without a material colour one flat shade
+- Accept option values written joined to the flag, such as -z90
+
 * Sun Oct 18 2026 Henry Kroll III <nospam@thenerdshow.com> - 1.2.3-1
 - Show .glb (binary glTF) previews, using an embedded preview when the
   asset has one and rendering the scene otherwise
