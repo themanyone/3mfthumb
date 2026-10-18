@@ -433,13 +433,13 @@ Discuss issues on the [GitHub issue tracker](https://github.com/themanyone/3mfth
 
 ## Author's links
 
-    - GitHub https://github.com/themanyone
-    - YouTube https://www.youtube.com/themanyone
-    - Mastodon https://mastodon.social/@themanyone
-    - Linkedin https://www.linkedin.com/in/henry-kroll-iii-93860426/
-    - Buy me a coffee https://buymeacoffee.com/isreality
-    - [TheNerdShow.com](http://thenerdshow.com/)
+- [GitHub](https://github.com/themanyone)
+- [YouTube](https://www.youtube.com/themanyone)
+- [Mastodon](https://mastodon.social/@themanyone)
+- [LinkedIn](https://www.linkedin.com/in/henry-kroll-iii-93860426/)
+- [Buy me a coffee](https://buymeacoffee.com/isreality)
+- [TheNerdShow.com](https://thenerdshow.com/)
 
-Copyright (C) 2024-2026 Henry Kroll III, www.thenerdshow.com. See [LICENSE](LICENSE) for details.
+Copyright (C) 2024-2026 [Henry Kroll III](https://thenerdshow.com/). See [LICENSE](LICENSE) for details.
 
-Additions adding full Windows support by Don Eisele, 2026, https://toysmakeuspowerful.com/
+Additions adding full Windows support by [Don Eisele](https://toysmakeuspowerful.com/), 2026.
