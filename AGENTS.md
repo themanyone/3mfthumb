@@ -42,10 +42,16 @@ one mesh renderer, `win-shellext/renderer.h`.
   only `/usr` and execs the program by name through the caller's `PATH`.
   `install -D` needs the file as the final argument (`-D src dir/file`).
 - `make clean` - removes objects, the binary and `build-kde/`.
-- `make rpm` (Fedora) - `rpmbuild` from `3mfthumb.spec` via `spectool`
-  (`rpm-build` + `spectool`). Builds `3mfthumb`, `3mfthumb-kde`, debuginfo and
-  the source RPM. `Source0` is the GitHub **tag** archive, so the version must
-  be pushed and tagged before the build can fetch it.
+- `make rpm` (Fedora) - `rpmbuild` from `3mfthumb.spec` (`rpm-build` +
+  `spectool`). Builds `3mfthumb`, `3mfthumb-kde`, debuginfo and the source
+  RPM. `Source0` is the GitHub **tag** archive, so the version must be pushed
+  and tagged before the build can fetch it. When the tag `vX.Y.Z` exists
+  locally the target regenerates `~/rpmbuild/SOURCES/3mfthumb-X.Y.Z.tar.gz`
+  from it (`git archive`) and only keeps the cached copy when its *contents*
+  also match; the `spectool` download is the fallback for a release without
+  a local tag. Never assume a cached archive is current: a tag that was moved
+  to fix a package leaves the old source in `SOURCES`, and rpm then rebuilds
+  (and ships) binaries from the old code. See the stale-SOURCES gotcha.
 - `make deb` / `./make-deb.sh` - plain `dpkg-deb`, no `debhelper`/`dpkg-dev`.
   Builds both `.deb`s into the current directory; `3mfthumb-kde` is skipped
   when cmake/Qt6/KF6 KIO are missing. Version comes from the spec, revision
@@ -250,7 +256,27 @@ end-to-end samples.
   KIO bindings, so a small C++ harness is needed).
 - **Releases**: tag `vX.Y.Z` is what `Source0` points at; push the tag before
   `make rpm`. Release assets are uploaded per package, keeping the base and
-  KDE packages as separate files (no name collisions).
+  KDE packages as separate files (no name collisions). To patch a release,
+  commit the fix, move the tag (`git tag -d vX.Y.Z`, re-tag, force-push the
+  tag) and rebuild every asset: the RPMs, both DEBs and the Windows installer
+  all embed the source, and a tag moved without a rebuild leaves the old code
+  in the published files.
+- **Stale-SOURCES trap**: `~/rpmbuild/SOURCES/3mfthumb-X.Y.Z.tar.gz` is
+  reused by `spectool`-less runs and by any `rpmbuild` invoked directly, so a
+  tag that moved keeps building from the previous archive, silently. Check
+  what the archive really holds before publishing:
+  `tar xzOf ~/rpmbuild/SOURCES/3mfthumb-X.Y.Z.tar.gz 3mfthumb-X.Y.Z/3mfthumb.cpp | grep <new symbol>`.
+  `make rpm` now rebuilds the archive from the local tag and compares
+  contents, but a hand-run `rpmbuild`, a build on another machine, or a tree
+  without the tag still needs `rm -f ~/rpmbuild/SOURCES/3mfthumb-X.Y.Z.tar.gz`
+  first. GitHub re-compresses the tag archive it serves, so byte-for-byte
+  comparison with a `spectool` download is meaningless; compare extracted
+  trees (that is why the Makefile uses `cmp <(tar xzOf ...) <(tar xzOf ...)`
+  and `/bin/bash`).
+- **Verify release assets after rebuilding**: extract the `.deb`
+  (`dpkg-deb -x`) or the source RPM's tarball and grep for a symbol that only
+  the new commit adds, then smoke-test `-z0`/`-z30` on an STL, since a stale
+  archive produces a package that looks fine but behaves like the old build.
 - **GPLv2** licensed; every source file carries the GPL header. Match the
   existing `///` comment style and keep attribution lines.
 

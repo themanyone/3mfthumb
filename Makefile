@@ -1,5 +1,5 @@
 NAME=3mfthumb
-SHELL=/bin/sh
+SHELL=/bin/bash
 PREFIX?=/usr
 .SUFFIXES:.cpp .o
 .PHONY: install uninstall clean rpm deb
@@ -126,7 +126,21 @@ rpm:
 	for tool in $(RPM_TOOLS); do command -v $$tool >/dev/null || \
 		{ echo "$$tool is required: sudo dnf install rpm-build"; exit 1; }; done
 	@mkdir -p $(dir $(RPM_ARCHIVE))
-	@if [ -f $(RPM_ARCHIVE) ]; then echo "using $(RPM_ARCHIVE)"; else \
+	@# A cached archive outlives a tag that moved, and Source0 is the tag:
+	@# rebuild it from the local tag, keeping the cached copy only when its
+	@# contents match. GitHub re-archives the tag, so bytes differ.
+	@if git cat-file -e refs/tags/v$(RPM_VERSION) 2>/dev/null; then \
+		echo "building $(RPM_ARCHIVE) from tag v$(RPM_VERSION)"; \
+		git archive --format=tar.gz --prefix=$(NAME)-$(RPM_VERSION)/ \
+			-o $(RPM_ARCHIVE).new v$(RPM_VERSION); \
+		if [ -f $(RPM_ARCHIVE) ] && \
+		   cmp -s <(tar xzOf $(RPM_ARCHIVE) 2>/dev/null) \
+			  <(tar xzOf $(RPM_ARCHIVE).new) 2>/dev/null; then \
+			echo "using $(RPM_ARCHIVE)"; rm -f $(RPM_ARCHIVE).new; \
+		else \
+			mv -f $(RPM_ARCHIVE).new $(RPM_ARCHIVE); \
+		fi; \
+	elif [ -f $(RPM_ARCHIVE) ]; then echo "using $(RPM_ARCHIVE)"; else \
 		spectool -g --directory $(dir $(RPM_ARCHIVE)) \
 			--define '_topdir $(RPM_TOPDIR)' $(NAME).spec || \
 		{ echo "cannot download the upstream release archive"; exit 1; }; fi
