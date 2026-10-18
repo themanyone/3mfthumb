@@ -54,7 +54,8 @@ one mesh renderer, `win-shellext/renderer.h`.
   `rules` stages files itself). Only the `make-deb.sh` path has been exercised
   (on Fedora).
 - `./3mfthumb [-r] [-c] [-s N] [-x DEG] [-y DEG] [-z DEG] [-f RRGGBB]
-  [-b RRGGBB] file.3mf|file.stl|file.glb [out.png]` - see CLI contract.
+  [-b RRGGBB]
+  file.3mf|file.stl [out.png]` - see CLI contract.
 - **KDE plugin**: `cmake -S kde-shellext -B build-kde && cmake --build build-kde`.
   Needs Qt 6, `KF6KIO` and ECM-less CMake (see gotchas). Installation paths are
   set in `kde-shellext/CMakeLists.txt`.
@@ -187,12 +188,7 @@ end-to-end samples.
 - **Windows argument count**: under `#ifdef WIN32` one argument is enough
   (`3mfthumb <file.3mf>` writes where Explorer expects it); on other builds a
   single argument is only accepted with `-c`.
-- **`win-shellext/gltf.h` is shared by the CLI, the KDE plugin and the Windows
-  shell extension**, so keep it dependency-free (it only includes
-  `renderer.h`). It reads GLB by hand (chunk table plus targeted JSON
-  scanning, no JSON library) and reuses `render::Affine`/`Face` so the 3MF and
-  glTF paths end in the same rasteriser. Draco/meshopt-compressed primitives
-  are skipped, not decoded.
+- **`win-shellext/gltf.h` is shared by the CLI, the KDE plugin and the Windows shell extension**, so keep it dependency-free (it only includes `renderer.h`). It reads GLB by hand (chunk table plus targeted JSON scanning, no JSON library) and reuses `render::Affine`/`Face` so the 3MF and glTF paths end in the same rasterizer. Draco/meshopt-compressed primitives are skipped, not decoded.
 - **The thumbnailer cache**: stale entries block new previews after an upgrade.
   The Makefile never wipes `/home/*/.cache/thumbnails` (root must not touch a
   user's cache); document `rm -rf $HOME/.cache/thumbnails/*`. A failed file
