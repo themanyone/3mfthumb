@@ -94,6 +94,21 @@ We will assume a GNU build environment with tools like `gcc-c++`, `pkg-config` a
 
 ## Linux Build
 
+**Optional preferences.** Obsessive tweakers can apply preferences to the generated thumbnails! (The ones that do not have an embedded `.png` image.) After running `make` try this for an example (requires timg, eog, eom or similar image viewer).
+
+`./3mfthumb -z 90 -f ff0000 ./lib3mf_sdk/Examples/Files/Helix.stl out.png && timg out.png`
+
+See `./3mfthumb -h` for help, experiment, edit `3mf.thumbnailer`
+to launch with your preferred flags.
+
+Customized `3mf.thumbnailer` example:
+```
+[Thumbnailer Entry]
+TryExec=3mfthumb
+Exec=3mfthumb -z 90 -f ff0000 %i %o
+MimeType=model/stl;model/3mf;application/vnd.ms-3mfdocument;application/sla;model/gltf-binary;model/gltf+json;
+```
+
 ```
 make
 sudo make install
