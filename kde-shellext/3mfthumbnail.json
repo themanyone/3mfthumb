@@ -1,13 +1,14 @@
 {
     "CacheThumbnail": true,
     "KPlugin": {
-        "Name": "3MF and STL documents",
-        "Description": "Preview 3MF and STL models with 3mfthumb",
+        "Name": "3MF, STL and glTF documents",
+        "Description": "Preview 3MF, STL and glTF models with 3mfthumb",
         "MimeTypes": [
             "model/3mf",
             "application/vnd.ms-3mfdocument",
             "model/stl",
-            "application/sla"
+            "application/sla",
+            "model/gltf-binary"
         ],
         "ServiceTypes": [
             "ThumbCreator"

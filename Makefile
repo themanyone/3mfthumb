@@ -5,6 +5,7 @@ PREFIX?=/usr
 .PHONY: install uninstall clean rpm deb
 SRCS=$(wildcard *.cpp)
 OBJS=$(SRCS:.cpp=.o)
+HEADERS=$(wildcard *.h win-shellext/*.h)
 CFLAGS?=-g -Wall -O2 -std=c++17
 BUILD_CFLAGS:=$(shell pkg-config --cflags lib3mf cairo)
 LDFLAGS:=$(shell pkg-config --libs lib3mf cairo)
@@ -16,7 +17,7 @@ all: $(NAME)
 # refused, see the install/uninstall targets.
 DESTDIRS=$(PREFIX)
 
-%.o: %.cpp
+%.o: %.cpp $(HEADERS)
 	$(CXX) $(BUILD_CFLAGS) $(CFLAGS) -c $< -o $@
 
 $(NAME): $(OBJS)

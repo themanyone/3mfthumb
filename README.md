@@ -16,6 +16,11 @@ Preview images are great. As .3mf is supposed to be the universal 3D Printing st
 
 **Unreleased**
 
+- Render `.glb` (binary glTF) files, and register `model/gltf-binary` in
+  `3mf.thumbnailer` and the KDE plugin. A preview kept in the asset's
+  `extras` is used when present; otherwise `gltf.h` flattens the scene's
+  node hierarchy and materials into the same triangle renderer as 3MF and
+  STL. Draco- and meshopt-compressed meshes are not decoded and are skipped.
 - Render `.stl` files (binary and ASCII) with the same renderer, and register
   `model/stl` / `application/sla` in `3mf.thumbnailer`. STL has no embedded
   preview, so it is always rendered. `3mfthumb model.stl out.png` now works.
@@ -23,6 +28,17 @@ Preview images are great. As .3mf is supposed to be the universal 3D Printing st
   cache (`~/.cache/thumbnails/<group>/<md5 of file URI>.png`), and `-s N` /
   `--size N` sets the render size (default 256). The output path may then be
   omitted.
+- Rendered images have a transparent background; `-b RRGGBB` / `--background
+  RRGGBB` composites them onto a solid colour instead, `-f RRGGBB` /
+  `--foreground RRGGBB` recolours triangles that have no material colour (STL
+  and most glTF), and `-h` / `--help` prints the usage text.
+- `-x DEG` / `--roll` (0), `-y DEG` / `--tilt` (30, 0 to 90) and `-z DEG` /
+  `--spin` (35) aim the camera about its line of sight, above the plate and
+  around it. The values are absolute: `-y 0` looks at the model head-on,
+  `-y 90` straight down, and `-z 0` faces its front.
+  Both default to 0, which is the view `3mfthumb` has always used (30 degrees
+  above the plate, 35 degrees to the right); they only affect rendered images,
+  not an embedded preview.
 - New KDE thumbnail plugin (`kde-shellext/`), so Dolphin shows 3MF and STL
   previews. Built with CMake and installed by `make install` when Qt 6 and
   KF6 KIO are present, and packaged separately as `3mfthumb-kde`
@@ -121,28 +137,21 @@ See [Nautilus / GNOME sandboxing](#nautilus--gnome-sandboxing) below.
 Distributions may ship `other thumbnailers` for `model/3mf` or `model/stl`, and two
 thumbnailers claiming the same MIME type is confusing.
 
-So to remove the `model/3mf` claim, for example:
+Run `grep -io model/3mf /usr/share/thumbnailers/*`
 
-```
-sudo sed -i 's/;\?model\/3mf;;*//; s/^MimeType=model\/3mf;/MimeType=/' \
-    /usr/share/thumbnailers/[name of other .thumbnailer]
-```
+If more than one thumbnailer comes up, consider uninstalling conflicting thumbnailer packages, or editing their thumbnailer entries.
 
-Or the same for `model/stl`:
+Remove old `3mf.thumbnailer` and any other thumbnailers you don't want from `/usr/local/share/thumbnailers`
+`~/.local/share/thumbnailers` and `/usr/share/thumbnailers`.
 
-```
-sudo sed -i 's/;\?model\/stl;;*//; s/^MimeType=model\/stl;/MimeType=/' \
-    /usr/share/thumbnailers/[name of other .thumbnailer]
-```
+Reinstall our `/usr/share/thumbnailers/3mf.thumbnailer`.
 
-Clear thumbnail cache & restart the file manager.
+Clear thumbnail cache & restart the file managers.
 
 ```
 rm -rf ~/.cache/thumbnails/*
 nautilus -q
 ```
-
-Or simply uninstall offending thumbnailer files & package(s).
 
 #### KDE (Dolphin)
 
@@ -201,7 +210,8 @@ When a package carries no preview image (slicers can be configured to embed them
 the mesh is traversed instead: component transforms are
 composed (including objects stored in separate `p:path` model parts), the
 model is viewed from a 35 degree yaw / 30 degree elevation orbit camera with
-Lambert shading, painted back to front through Cairo. Material colours from
+Lambert shading, painted back to front through Cairo. `-x`, `-y` and `-z` aim
+that camera before the model is drawn. Material colours from
 `basematerials` and `m:colorgroup` are used when present. This is a plain
 preview, not a full renderer: no textures, beam lattices or level sets.
 

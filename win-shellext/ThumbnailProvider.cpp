@@ -51,6 +51,7 @@
 
 #include <lib3mf_dynamic.hpp>
 
+#include "gltf.h"
 #include "renderer.h"
 
 static const CLSID CLSID_3mfThumbnailProvider = {
@@ -174,8 +175,8 @@ static HRESULT CreateHBITMAPFromImageBytes(const std::vector<Lib3MF_uint8> &byte
     return FAILED(hr) ? hr : E_FAIL;
 }
 
-// Wrap an RGBA pixel buffer (square, top row first, alpha 255) in a
-// premultiplied-alpha HBITMAP for Explorer.
+// Wrap an RGBA pixel buffer (square, top row first, unpremultiplied alpha)
+// in a premultiplied-alpha HBITMAP for Explorer.
 static HRESULT CreateHBITMAPFromPixels(const std::vector<uint8_t> &pixels, UINT cx,
                                        HBITMAP *phbmp, WTS_ALPHATYPE *pdwAlpha)
 {
@@ -199,14 +200,15 @@ static HRESULT CreateHBITMAPFromPixels(const std::vector<uint8_t> &pixels, UINT 
 
     BYTE *dst = (BYTE *)pBits;
     for (size_t i = 0; i < (size_t)cx * cx; ++i) {
+        const BYTE a = pixels[i * 4 + 3];
         const BYTE r = pixels[i * 4 + 0];
         const BYTE g = pixels[i * 4 + 1];
         const BYTE b = pixels[i * 4 + 2];
-        // Opaque pixels are already premultiplied (alpha 255).
-        dst[i * 4 + 0] = b;
-        dst[i * 4 + 1] = g;
-        dst[i * 4 + 2] = r;
-        dst[i * 4 + 3] = 255;
+        // Explorer expects premultiplied BGRA.
+        dst[i * 4 + 0] = (BYTE)((b * a + 127) / 255);
+        dst[i * 4 + 1] = (BYTE)((g * a + 127) / 255);
+        dst[i * 4 + 2] = (BYTE)((r * a + 127) / 255);
+        dst[i * 4 + 3] = a;
     }
 
     *phbmp = hbmp;
@@ -295,6 +297,22 @@ public:
         *pdwAlpha = WTSAT_UNKNOWN;
         if (!m_initialized) return E_UNEXPECTED;
 
+        const std::string path = WideToUtf8(m_filePath);
+        if (path.size() > 4 &&
+            (path.compare(path.size() - 4, 4, ".glb") == 0 ||
+             path.compare(path.size() - 4, 4, ".GLB") == 0)) {
+            std::vector<uint8_t> image;
+            if (threemf::gltf::embeddedThumbnail(
+                    path, std::string(m_buffer.begin(), m_buffer.end()), image))
+                return CreateHBITMAPFromImageBytes(
+                    std::vector<Lib3MF_uint8>(image.begin(), image.end()), cx,
+                    phbmp, pdwAlpha);
+            std::vector<uint8_t> pixels;
+            if (!threemf::gltf::renderGLBToRGBA(path, (int)cx, pixels))
+                return S_FALSE;
+            return CreateHBITMAPFromPixels(pixels, cx, phbmp, pdwAlpha);
+        }
+
         try {
             auto wrapper = Lib3MF::CWrapper::loadLibrary(GetLib3mfDllPath());
             Lib3MF::PModel model = wrapper->CreateModel();
@@ -302,7 +320,7 @@ public:
             if (!m_buffer.empty())
                 reader->ReadFromBuffer(m_buffer);
             else
-                reader->ReadFromFile(WideToUtf8(m_filePath));
+                reader->ReadFromFile(path);
 
             if (model->HasPackageThumbnailAttachment()) {
                 Lib3MF::PAttachment thumbnail = model->GetPackageThumbnailAttachment();
@@ -323,7 +341,7 @@ public:
     }
 
 private:
-    ~CThumbnailProvider() { InterlockedDecrement(&g_cDllRef); }
+    virtual ~CThumbnailProvider() { InterlockedDecrement(&g_cDllRef); }
     long m_cRef;
     bool m_initialized;
     std::wstring m_filePath;
@@ -369,7 +387,7 @@ public:
     }
 
 private:
-    ~CClassFactory() { InterlockedDecrement(&g_cDllRef); }
+    virtual ~CClassFactory() { InterlockedDecrement(&g_cDllRef); }
     long m_cRef;
 };
 
@@ -405,15 +423,19 @@ static HRESULT RegisterServer()
     SetStringValue(hKey, L"ThreadingModel", L"Apartment");
     RegCloseKey(hKey);
 
-    std::wstring extKeyPath = std::wstring(L"Software\\Classes\\.3mf\\ShellEx\\") +
-                               L"{e357fccd-a995-4576-b01f-234630154e96}";
-    if (RegCreateKeyExW(HKEY_CURRENT_USER, extKeyPath.c_str(), 0, nullptr, 0, KEY_WRITE, nullptr, &hKey,
-                         nullptr) != ERROR_SUCCESS)
-        return E_FAIL;
-    SetStringValue(hKey, nullptr, clsidStr);
-    RegCloseKey(hKey);
+    for (const wchar_t *extension : {L".3mf", L".glb"}) {
+        std::wstring extKeyPath =
+            std::wstring(L"Software\\Classes\\") + extension +
+            L"\\ShellEx\\{e357fccd-a995-4576-b01f-234630154e96}";
+        if (RegCreateKeyExW(HKEY_CURRENT_USER, extKeyPath.c_str(), 0, nullptr,
+                            0, KEY_WRITE, nullptr, &hKey,
+                            nullptr) != ERROR_SUCCESS)
+            return E_FAIL;
+        SetStringValue(hKey, nullptr, clsidStr);
+        RegCloseKey(hKey);
+    }
 
-    // Nudge Explorer to drop cached negative results for .3mf.
+    // Nudge Explorer to drop cached negative results for .3mf and .glb.
     SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
     return S_OK;
 }
@@ -423,9 +445,12 @@ static HRESULT UnregisterServer()
     WCHAR clsidStr[64];
     StringFromGUID2(CLSID_3mfThumbnailProvider, clsidStr, ARRAYSIZE(clsidStr));
 
-    std::wstring extKeyPath = std::wstring(L"Software\\Classes\\.3mf\\ShellEx\\") +
-                               L"{e357fccd-a995-4576-b01f-234630154e96}";
-    RegDeleteKeyW(HKEY_CURRENT_USER, extKeyPath.c_str());
+    for (const wchar_t *extension : {L".3mf", L".glb"}) {
+        std::wstring extKeyPath =
+            std::wstring(L"Software\\Classes\\") + extension +
+            L"\\ShellEx\\{e357fccd-a995-4576-b01f-234630154e96}";
+        RegDeleteKeyW(HKEY_CURRENT_USER, extKeyPath.c_str());
+    }
 
     std::wstring clsidKeyPath = std::wstring(L"Software\\Classes\\CLSID\\") + clsidStr;
     std::wstring inprocPath = clsidKeyPath + L"\\InprocServer32";
