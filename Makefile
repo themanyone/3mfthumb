@@ -29,11 +29,20 @@ $(NAME): $(OBJS)
 # found: the binary has to live in /usr/bin.
 SYSTEM_THUMBNAILER=$(PREFIX)/share/thumbnailers/3mf.thumbnailer
 
+# KDE's Dolphin and file dialogs ignore freedesktop .thumbnailer entries and
+# load thumbnail plugins instead. kde-shellext/ builds that plugin with CMake
+# (Qt 6 + KF6 KIO); make builds it when cmake says it can, and installs it
+# into Qt's plugin directory next to 3mfthumbnail.json.
+KDE_BUILD=build-kde
+QT_PLUGIN_LIBDIR:=$(shell pkg-config --variable=libdir Qt6Core 2>/dev/null || echo $(PREFIX)/lib64)
+QT_PLUGIN_DEST=$(PREFIX)/$(patsubst $(PREFIX)/%,%,$(QT_PLUGIN_LIBDIR))/qt6/plugins
+
 # Restart Nautilus so it re-reads the thumbnailer entries; it only does so at
 # startup. `nautilus -q` needs the desktop user's session bus, and sudo
 # replaces that with its own, so the whole recipe runs in one shell: it works
 # as the invoking user (SUDO_USER) through setpriv, and says so when
-# it cannot, because a root shell has no session to act for.
+# it cannot, because a root shell has no session to act for. setpriv only
+# takes a program, so the bus address goes through `env`.
 NAUTILUS_RESTART = \
 	me=$${SUDO_USER:-$$(id -un)}; \
 	if [ "$$me" != root ] && [ -S /run/user/$$(id -u "$$me")/bus ]; then \
@@ -45,7 +54,7 @@ NAUTILUS_RESTART = \
 	case "$$user" in \
 	""|root) echo "Run 'nautilus -q' in your desktop session to restart Nautilus.";; \
 	*) setpriv --reuid="$$user" --regid="$$(id -gn "$$user")" --clear-groups \
-		--reset-env \
+		--reset-env env \
 		DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$$(id -u "$$user")/bus" \
 		sh -c 'command -v nautilus >/dev/null && nautilus -q' \
 		&& echo "Restarted Nautilus for $$user." \
@@ -80,6 +89,12 @@ else
 		install -Dm 644 3mf.thumbnailer $$d/share/thumbnailers/3mf.thumbnailer || exit 1; \
 	done
 	install -D -m 644 3mf.thumbnailer $(SYSTEM_THUMBNAILER)
+	@if command -v cmake >/dev/null 2>&1 && \
+		cmake -S kde-shellext -B $(KDE_BUILD) >/dev/null 2>&1; then \
+		cmake --build $(KDE_BUILD) && cmake --install $(KDE_BUILD); \
+	else \
+		echo "3mfthumb: KDE thumbnail plugin not built (needs cmake, Qt 6 and KF6 KIO)"; \
+	fi
 	@$(NAUTILUS_RESTART)
 endif
 
@@ -91,6 +106,9 @@ else
 		$(RM) $$d/bin/$(NAME) $$d/share/thumbnailers/3mf.thumbnailer; \
 	done
 	$(RM) $(SYSTEM_THUMBNAILER)
+	$(RM) $(QT_PLUGIN_DEST)/thumbcreator/lib3mfthumbnail.so \
+		$(QT_PLUGIN_DEST)/thumbcreator/3mfthumbnail.json
+	$(RM) -r $(KDE_BUILD)
 	@$(NAUTILUS_RESTART)
 endif
 
@@ -122,3 +140,4 @@ deb:
 
 clean:
 	$(RM) *.o $(NAME)
+	$(RM) -r $(KDE_BUILD)

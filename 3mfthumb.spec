@@ -2,6 +2,9 @@ Name:           3mfthumb
 Version:        1.2.2
 Release:        1%{?dist}
 Summary:        Embedded 3MF thumbnail extractor for desktop file managers
+# The KDE plugin lives in its own subpackage so the Qt 6 and KIO dependencies
+# stay out of the base package. Build without it: --without kde
+%bcond_without kde
 
 License:        GPL-2.0-or-later
 URL:            https://github.com/themanyone/3mfthumb
@@ -15,12 +18,31 @@ BuildRequires:  cairo-devel
 BuildRequires:  libzip-devel
 BuildRequires:  zlib-ng-compat-devel
 
+%if %{with kde}
+BuildRequires:  cmake
+BuildRequires:  qt6-qtbase-devel
+BuildRequires:  kf6-kio-devel
+%endif
+
 %description
 3mfthumb extracts the thumbnail image that 3D printing applications embed
 in a 3MF package and writes it out as a PNG. It is a freedesktop.org
 thumbnail generator, which desktop file managers such as PCManFM and
 Nautilus call to show previews of .3mf files. Packages without an embedded
 image get a simple rendered preview of their meshes instead.
+
+%package kde
+Summary:        KDE Dolphin thumbnail plugin for 3MF and STL files
+License:        GPL-2.0-or-later
+Requires:       %{name} = %{version}-%{release}
+
+%description kde
+KIO thumbnail plugin that shows previews of 3MF and STL files in KDE
+applications such as Dolphin and the file dialog. KDE does not read
+freedesktop .thumbnailer entries, so the %{name} binary alone is not
+enough there. This is a script that runs the %{name} binary with -c and
+lets KIO cache the result, which keeps the package free of Qt and KIO
+dependencies and safe to install on non-KDE systems.
 
 %prep
 %autosetup -n %{name}-%{version}
@@ -42,7 +64,16 @@ image get a simple rendered preview of their meshes instead.
 install -Dpm 755 3mfthumb %{buildroot}%{_bindir}/3mfthumb
 install -Dpm 644 3mf.thumbnailer %{buildroot}%{_datadir}/thumbnailers/3mf.thumbnailer
 install -Dpm 644 LICENSE %{buildroot}%{_docdir}/%{name}/LICENSE
-cp -pr win-installer win-shellext %{buildroot}%{_docdir}/%{name}/
+cp -pr win-installer win-shellext kde-shellext %{buildroot}%{_docdir}/%{name}/
+
+%if %{with kde}
+# KDE thumbnail plugin (the real IThumbnailCreator equivalent). It carries the
+# Qt/KIO dependency, so it lives in the -kde subpackage, and the freedesktop
+# thumbnailer above stays the only thing the base package installs.
+%{cmake} -B build-kde -S kde-shellext -DCMAKE_INSTALL_PREFIX=%{_prefix}
+%cmake_build -B build-kde
+%cmake_install -B build-kde
+%endif
 
 # Ship the sources so rebuilding as documented works from the installed docs.
 mkdir -p %{buildroot}%{_docdir}/%{name}/source
@@ -54,8 +85,16 @@ install -pm 644 Makefile 3mfthumb.cpp 3mf.thumbnailer LICENSE \
 %doc %{_docdir}/%{name}/source
 %doc %{_docdir}/%{name}/win-installer
 %doc %{_docdir}/%{name}/win-shellext
+%doc %{_docdir}/%{name}/kde-shellext
 %{_bindir}/3mfthumb
 %{_datadir}/thumbnailers/3mf.thumbnailer
+
+%if %{with kde}
+%files kde
+%doc %{_docdir}/%{name}/kde-shellext
+%{_libdir}/qt6/plugins/thumbcreator/lib3mfthumbnail.so
+%{_libdir}/qt6/plugins/thumbcreator/3mfthumbnail.json
+%endif
 
 %changelog
 * Sat Oct 17 2026 Henry Kroll III <nospam@thenerdshow.com> - 1.2.2-1

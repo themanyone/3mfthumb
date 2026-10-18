@@ -13,6 +13,7 @@ override_dh_auto_build:
 
 override_dh_auto_clean:
 	$(MAKE) clean
+	rm -rf build-kde
 
 override_dh_auto_test:
 
@@ -20,6 +21,10 @@ override_dh_auto_install:
 	install -Dpm 755 3mfthumb $(CURDIR)/debian/3mfthumb/usr/bin/3mfthumb
 	install -Dpm 644 3mf.thumbnailer \
 		$(CURDIR)/debian/3mfthumb/usr/share/thumbnailers/3mf.thumbnailer
+	# The plugin goes into the 3mfthumb-kde package, never the base one.
+	cmake -S kde-shellext -B build-kde -DCMAKE_INSTALL_PREFIX=/usr
+	cmake --build build-kde
+	cmake --install build-kde --prefix $(CURDIR)/debian/3mfthumb-kde/usr
 
 %:
 	dh $@

@@ -9,6 +9,9 @@ Build-Depends:
  libcairo2-dev,
  libzip-dev,
  zlib1g-dev,
+ cmake,
+ qt6-base-dev,
+ libkf6kio-dev,
 Standards-Version: 4.7.0
 Rules-Requires-Root: no
 Homepage: https://github.com/themanyone/3mfthumb
@@ -26,3 +29,17 @@ Description: thumbnail generator for 3D Manufacturing Format files
  freedesktop.org thumbnailer interface, so file managers such as Nautilus,
  Thunar and PCManFM can show previews of .3mf files. When a package has no
  embedded image, the build meshes are rendered instead.
+
+Package: 3mfthumb-kde
+Architecture: any
+Depends:
+ 3mfthumb (= ${binary:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends},
+Description: KDE Dolphin thumbnail plugin for 3MF and STL files
+ KIO thumbnail plugin that shows previews of 3MF and STL files in KDE
+ applications such as Dolphin and the file dialog. KDE does not read
+ freedesktop .thumbnailer entries, so the 3mfthumb binary alone is not
+ enough there. It uses the same renderer as 3mfthumb and returns a 3MF
+ package's own thumbnail when it has one. Separate from 3mfthumb so the
+ Qt and KIO dependencies stay off non-KDE systems.

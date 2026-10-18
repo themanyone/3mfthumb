@@ -22,7 +22,8 @@ Preview images are great. As .3mf is supposed to be the universal 3D Printing st
   omitted.
 - New KDE thumbnail plugin (`kde-shellext/`), so Dolphin shows 3MF and STL
   previews. Built with CMake and installed by `make install` when Qt 6 and
-  KF6 KIO are present.
+  KF6 KIO are present, and packaged separately as `3mfthumb-kde`
+  (RPM subpackage and DEB) so it never pulls Qt into non-KDE systems.
 
 **1.2.2**
 
@@ -156,6 +157,9 @@ one in `kde-shellext/`: it draws with the same mesh renderer, returns the 3MF
 package thumbnail when the file has one, and lets KIO write the shared
 thumbnail cache (`CacheThumbnail=true`).
 
+Packages keep it separate so only KDE users get the Qt and KIO dependencies:
+the `3mfthumb-kde` RPM subpackage, and a `3mfthumb-kde` deb built by
+`make-deb.sh` (and by `debian/control`, which is a second binary package).
 `make install` builds and installs it when CMake, Qt 6 and KF6 KIO are
 installed, otherwise it prints a note and skips it. To do it by hand:
 
@@ -241,7 +245,10 @@ make CFLAGS=-I./lib3mf_sdk/Bindings/Cpp LDFLAGS="-l3mf -lzip -lz -lcairo -L./lib
 ## Fedora RPM
 
 `3mfthumb.spec` packages the binary and the thumbnailer definition as
-`/usr/bin/3mfthumb` and `/usr/share/thumbnailers/3mf.thumbnailer`.
+`/usr/bin/3mfthumb` and `/usr/share/thumbnailers/3mf.thumbnailer`. The KDE
+Dolphin plugin is a separate subpackage, `3mfthumb-kde`, so the base package
+stays free of Qt 6 and KIO:
+`dnf install 3mfthumb-kde`.
 
 **Grab the latest package here:**
 [Download `3mfthumb-1.2.2-1.fc43.x86_64.rpm`](https://github.com/themanyone/3mfthumb/releases/latest)

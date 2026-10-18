@@ -28,10 +28,13 @@
 #define THREEMF_RENDERER_H
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <limits>
+#include <string>
 #include <vector>
 #if defined(THREEMF_USE_DYNAMIC_BINDING) || defined(_WIN32)
 // The shell extension loads lib3mf.dll by absolute path (see
@@ -246,22 +249,99 @@ inline void collectObject(Lib3MF::PModel model, Lib3MF_uint32 objectID,
   collectFaces(model, object, Affine{}, faces);
 }
 
-/// Renders the model's build items into an RGBA pixel buffer (row-major,
-/// top row first, alpha always 255) of ``size`` x ``size`` pixels, on a
-/// white background. Returns false when the model has nothing to draw.
-inline bool renderToRGBA(Lib3MF::PModel model, int size,
-                         std::vector<uint8_t> &pixels) {
-  if (size <= 0)
+/// Reads an STL file (binary or ASCII, detected by size) into flat-shaded
+/// triangle soup. STL carries no colors, so ``Face::r`` stays -1 and the
+/// triangles get normal shading.
+inline bool readSTL(const std::string &filename, std::vector<Face> &faces) {
+  FILE *file = std::fopen(filename.c_str(), "rb");
+  if (!file)
     return false;
-  std::vector<Face> faces;
-  auto buildItems = model->GetBuildItems();
-  while (buildItems->MoveNext()) {
-    auto item = buildItems->GetCurrent();
-    if (!item)
-      continue;
-    collectObject(model, item->GetObjectResourceID(), faces);
+  std::vector<uint8_t> data;
+  uint8_t chunk[65536];
+  size_t got;
+  while ((got = std::fread(chunk, 1, sizeof(chunk), file)) > 0)
+    data.insert(data.end(), chunk, chunk + got);
+  std::fclose(file);
+  if (data.empty())
+    return false;
+
+  // ``vertices`` points at nine floats: the three corners of one triangle.
+  const auto addFacet = [&faces](const float *vertices) {
+    Face f;
+    for (int i = 0; i < 3; ++i) {
+      f.v[i].x = vertices[i * 3];
+      f.v[i].y = vertices[i * 3 + 1];
+      f.v[i].z = vertices[i * 3 + 2];
+    }
+    f.r = f.g = f.b = -1; // unset: fall back to normal shading
+    faces.push_back(f);
+  };
+
+  // Binary STL: 84-byte header, then a uint32 triangle count and 50 bytes
+  // per triangle: normal (3 floats), three vertices (9 floats) and a 2-byte
+  // attribute count. The size check is what distinguishes it from ASCII,
+  // since some writers start the header with the word "solid" too.
+  uint32_t triangleCount = 0;
+  if (data.size() >= 84)
+    std::memcpy(&triangleCount, data.data() + 80, sizeof(triangleCount));
+  if (triangleCount > 0 &&
+      data.size() == 84 + static_cast<size_t>(triangleCount) * 50) {
+    const uint8_t *record = data.data() + 84;
+    for (uint32_t n = 0; n < triangleCount; ++n, record += 50) {
+      float values[12];
+      std::memcpy(values, record, sizeof(values));
+      addFacet(values + 3);
+    }
+    return !faces.empty();
   }
-  if (faces.empty())
+
+  // ASCII STL: "facet normal ... outer loop vertex x y z (x3) endloop
+  // endfacet". Only the vertex lines hold geometry; the normal is ignored
+  // because the renderer recomputes it. Each facet ends at its "endfacet".
+  const std::string text(reinterpret_cast<const char *>(data.data()), data.size());
+  const size_t first = text.find_first_not_of(" \t\r\n");
+  if (first == std::string::npos || text.compare(first, 5, "solid") != 0)
+    return false;
+  float values[9];
+  int count = 0;
+  const auto flushFacet = [&]() {
+    if (count == 9)
+      addFacet(values);
+    count = 0;
+  };
+  const char *p = text.data();
+  const char *end = p + text.size();
+  while (p < end) {
+    while (p < end && std::isspace(static_cast<unsigned char>(*p)))
+      ++p;
+    const char *word = p;
+    while (p < end && !std::isspace(static_cast<unsigned char>(*p)))
+      ++p;
+    const std::string keyword(word, static_cast<size_t>(p - word));
+    if (keyword == "vertex") {
+      for (int i = 0; i < 3 && p < end; ++i) {
+        char *next = nullptr;
+        const double value = std::strtod(p, &next);
+        if (next == p)
+          break;
+        p = next;
+        if (count < 9)
+          values[count++] = static_cast<float>(value);
+      }
+    } else if (keyword == "endfacet") {
+      flushFacet();
+    }
+  }
+  flushFacet();
+  return !faces.empty();
+}
+
+/// Renders already-flattened triangle soup into an RGBA pixel buffer; this
+/// is the shared tail of renderToRGBA and renderSTLToRGBA. The buffer is
+/// row-major, top row first, alpha always 255, on a white background.
+inline bool renderFacesToRGBA(const std::vector<Face> &faces, int size,
+                              std::vector<uint8_t> &pixels) {
+  if (size <= 0 || faces.empty())
     return false;
 
   double minCorner[3] = {std::numeric_limits<double>::max(),
@@ -418,6 +498,38 @@ inline bool renderToRGBA(Lib3MF::PModel model, int size,
     }
   }
   return true;
+}
+
+/// Renders an STL file into an RGBA pixel buffer the same way renderToRGBA
+/// draws a 3MF model.
+inline bool renderSTLToRGBA(const std::string &filename, int size,
+                            std::vector<uint8_t> &pixels) {
+  std::vector<Face> faces;
+  if (!readSTL(filename, faces))
+    return false;
+  return renderFacesToRGBA(faces, size, pixels);
+}
+
+/// Flattens a model's build items into triangle soup.
+inline void readModel(Lib3MF::PModel model, std::vector<Face> &faces) {
+  auto buildItems = model->GetBuildItems();
+  while (buildItems->MoveNext()) {
+    auto item = buildItems->GetCurrent();
+    if (!item)
+      continue;
+    collectObject(model, item->GetObjectResourceID(), faces);
+  }
+}
+
+/// Renders the model's build items. Returns false when there is nothing to
+/// draw.
+inline bool renderToRGBA(Lib3MF::PModel model, int size,
+                         std::vector<uint8_t> &pixels) {
+  if (size <= 0)
+    return false;
+  std::vector<Face> faces;
+  readModel(model, faces);
+  return renderFacesToRGBA(faces, size, pixels);
 }
 
 /// Encodes an RGBA buffer made by renderToRGBA as a PNG file. Kept here so

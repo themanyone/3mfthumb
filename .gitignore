@@ -2,11 +2,13 @@
 *.exe
 *.dll
 build-win/
+build-kde/
 lib3mf_sdk/
 lib3mf_sdk_v*.zip
 CLAUDE.md
 win-installer/staging/
 debian/3mfthumb/
+debian/3mfthumb-kde/
 debian/.debhelper/
 debian/files
 debian/*.substvars
