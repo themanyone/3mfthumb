@@ -76,6 +76,23 @@ Arch
 
 We will assume a GNU build environment with tools like `gcc-c++`, `pkg-config` and `make`.
 
+Optional: the Dolphin/KDE thumbnail plugin (`3mfthumb-kde`) is skipped when
+its toolchain is missing. To build it, add CMake and the Qt 6 / KF6 KIO
+development files:
+
+Fedora, Centos.
+`dnf install cmake qt6-qtbase-devel kf6-kio-devel`
+
+Ubuntu, Debian (24.04 or later).
+`apt install cmake qt6-base-dev libkf6kio-dev`
+
+Arch
+`pacman -S cmake qt6-base kio`
+
+`make install` also restarts Nautilus for the desktop session and only warns
+when that is not possible; it needs no extra package beyond `util-linux`
+(`setpriv`) and, for sessions found through `loginctl`, systemd.
+
 ## Linux Build
 
 ```
