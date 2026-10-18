@@ -341,7 +341,7 @@ public:
     }
 
 private:
-    ~CThumbnailProvider() { InterlockedDecrement(&g_cDllRef); }
+    virtual ~CThumbnailProvider() { InterlockedDecrement(&g_cDllRef); }
     long m_cRef;
     bool m_initialized;
     std::wstring m_filePath;
@@ -387,7 +387,7 @@ public:
     }
 
 private:
-    ~CClassFactory() { InterlockedDecrement(&g_cDllRef); }
+    virtual ~CClassFactory() { InterlockedDecrement(&g_cDllRef); }
     long m_cRef;
 };
 

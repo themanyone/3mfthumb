@@ -12,8 +12,8 @@
 ;
 ; Builds a per-user installer (no administrator rights needed) that:
 ;   1. installs 3mfthumbprovider.dll, the COM IThumbnailProvider shell
-;      extension that makes Windows Explorer show .3mf thumbnails
-;   2. installs lib3mf.dll, its runtime dependency
+;      extension that makes Windows Explorer show .3mf and .glb thumbnails
+;   2. installs its runtime dependencies, lib3mf.dll and libwinpthread-1.dll
 ;   3. optionally installs the 3mfthumb.exe command-line tool
 ;   4. registers / unregisters everything under HKCU\Software\Classes
 ;
@@ -75,6 +75,9 @@ Section "Windows Explorer thumbnail handler" SecShell
   SetOutPath "$INSTDIR"
   File "staging\3mfthumbprovider.dll"
   File "staging\lib3mf.dll"
+  ; The provider itself imports libwinpthread-1.dll, so RegDLL below fails
+  ; without it even when the optional command-line tool is not installed.
+  File "staging\libwinpthread-1.dll"
 
   ; Register the COM server (writes only to HKCU\Software\Classes).
   ; RegDLL loads the DLL and calls DllRegisterServer, which also pokes
@@ -90,7 +93,6 @@ Section "3mfthumb command-line tool" SecCli
 !ifdef HAS_CLI
   SetOutPath "$INSTDIR"
   File "staging\3mfthumb.exe"
-  File "staging\libwinpthread-1.dll"
 
   ; Start-menu entry for the CLI so users can find it.
   CreateDirectory "$SMPROGRAMS\3mfthumb"
@@ -155,8 +157,8 @@ Section "Uninstall"
   Delete "$INSTDIR\lib3mf.dll"
 !ifdef HAS_CLI
   Delete "$INSTDIR\3mfthumb.exe"
-  Delete "$INSTDIR\libwinpthread-1.dll"
 !endif
+  Delete "$INSTDIR\libwinpthread-1.dll"
   Delete "$INSTDIR\Uninstall.exe"
   RMDir "$INSTDIR"
 
