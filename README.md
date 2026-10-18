@@ -14,7 +14,7 @@ Show 3MF, STL, & GLTF previews in file managers such as `pcmanfm`, `nautilus`, a
 
 **1.2.4**
 
-- Fix shading. See Install Preferences below.
+- Fix shading. See [Customize](#customize) below.
 - Option values may be written joined to the flag (`-z90`, `-s128`,
   `--spin=90`), as well as separated by a space.
 
