@@ -14,7 +14,7 @@ Preview images are great. As .3mf is supposed to be the universal 3D Printing st
 
 ## Changelog
 
-**Unreleased**
+**1.2.3**
 
 - Render `.glb` (binary glTF) files, and register `model/gltf-binary` in
   `3mf.thumbnailer` and the KDE plugin. A preview kept in the asset's
@@ -255,8 +255,8 @@ stays free of Qt 6 and KIO:
 `dnf install 3mfthumb-kde`.
 
 **Grab the latest package here:**
-[Download `3mfthumb-1.2.2-1.fc43.x86_64.rpm`](https://github.com/themanyone/3mfthumb/releases/latest)
-and install it with `sudo dnf install ./3mfthumb-1.2.2-1.fc43.x86_64.rpm`.
+[Download `3mfthumb-1.2.3-1.fc43.x86_64.rpm`](https://github.com/themanyone/3mfthumb/releases/latest)
+and install it with `sudo dnf install ./3mfthumb-1.2.3-1.fc43.x86_64.rpm`.
 The matching source RPM is on the same release page.
 
 `make rpm` builds the binary RPM and the source RPM locally. It downloads
@@ -282,8 +282,8 @@ Ninja is not involved.
 ## Debian / Ubuntu DEB
 
 **Grab the latest package here:**
-[Download `3mfthumb_1.2.2-1_amd64.deb`](https://github.com/themanyone/3mfthumb/releases/latest)
-and install it with `sudo apt install ./3mfthumb_1.2.2-1_amd64.deb`.
+[Download `3mfthumb_1.2.3-1_amd64.deb`](https://github.com/themanyone/3mfthumb/releases/latest)
+and install it with `sudo apt install ./3mfthumb_1.2.3-1_amd64.deb`.
 The package depends on `lib3mf1`, `libzip5`, `libcairo2` and `zlib1g`, which apt pulls in
 from the distribution. Afterwards run `rm -rf $HOME/.cache/thumbnails/*` so
 file managers regenerate previews.
@@ -302,7 +302,7 @@ links against the host's own libraries.
 ```
 sudo apt install lib3mf-dev libzip-dev libcairo2-dev zlib1g-dev
 make deb
-sudo apt install ./3mfthumb_1.2.2-1_amd64.deb
+sudo apt install ./3mfthumb_1.2.3-1_amd64.deb
 ```
 
 The package installs `/usr/bin/3mfthumb` and
@@ -315,8 +315,8 @@ The `debian/` directory is also a complete `debhelper` source package, so
 the usual tooling works on a release tree:
 
 ```
-git archive --format=tar --prefix=3mfthumb-1.2.2/ v1.2.2 | tar -x
-cd 3mfthumb-1.2.2 && sudo apt install debhelper dpkg-dev
+git archive --format=tar --prefix=3mfthumb-1.2.3/ v1.2.3 | tar -x
+cd 3mfthumb-1.2.3 && sudo apt install debhelper dpkg-dev
 dpkg-buildpackage -us -uc -b
 ```
 

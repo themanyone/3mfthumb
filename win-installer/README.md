@@ -4,7 +4,8 @@ One-command way to get .3mf thumbnails into Windows Explorer. Builds a
 per-user NSIS installer (`3mfthumb-setup.exe`) that:
 
 1. copies `3mfthumbprovider.dll` (the COM `IThumbnailProvider` shell
-   extension) and its runtime dependency `lib3mf.dll` into
+   extension) for `.3mf` and `.glb` files, plus its runtime dependencies
+   `lib3mf.dll` and `libwinpthread-1.dll`, into
    `%LOCALAPPDATA%\Programs\3mfthumb\`
 2. registers the COM server under `HKEY_CURRENT_USER\Software\Classes`
    (via the DLL's `DllRegisterServer`), so **no administrator rights are

@@ -1,5 +1,5 @@
 Name:           3mfthumb
-Version:        1.2.2
+Version:        1.2.3
 Release:        1%{?dist}
 Summary:        Embedded 3MF thumbnail extractor for desktop file managers
 # The KDE plugin lives in its own subpackage so the Qt 6 and KIO dependencies
@@ -98,6 +98,13 @@ install -pm 644 Makefile 3mfthumb.cpp 3mf.thumbnailer LICENSE \
 %endif
 
 %changelog
+* Sun Oct 18 2026 Henry Kroll III <nospam@thenerdshow.com> - 1.2.3-1
+- Show .glb (binary glTF) previews, using an embedded preview when the
+  asset has one and rendering the scene otherwise
+- Render STL models and add the -c (thumbnail cache), -s (size), -f/-b
+  (colours) and -x/-y/-z (camera aim) options
+- Add the 3mfthumb-kde thumbnail plugin for Dolphin
+
 * Sat Oct 17 2026 Henry Kroll III <nospam@thenerdshow.com> - 1.2.2-1
 - Install to /usr/bin, the only place Nautilus' bubblewrap sandbox can
   reach; drop the GResource overlay that made Nautilus hang at startup

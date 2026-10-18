@@ -1,3 +1,11 @@
+3mfthumb (1.2.3-1) unstable; urgency=medium
+
+  * New upstream release: previews for .glb (binary glTF) models, STL
+    rendering, a writable thumbnail cache, colour and camera options, and
+    the 3mfthumb-kde plugin for Dolphin.
+
+ -- Henry Kroll III <nospam@thenerdshow.com>  Sun, 18 Oct 2026 00:00:00 -0800
+
 3mfthumb (1.2.2-1) unstable; urgency=medium
 
   * New upstream release: install to /usr/bin, which is the only location
