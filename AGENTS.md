@@ -120,9 +120,14 @@ sample and inspect the output (`file out.png`, `identify -format '%[fx:mean]'`).
   images, never to a copied embedded preview. The camera never rotates the
   model: it orbits it with world +Z kept upright (roll then spins the screen
   axes), so every aim frames the model the same way.
-- `-f/--foreground RRGGBB` - colour for triangles that carry no material
-  colour (all STL, most glTF); 3MF material colours still win. Default is the
-  shaded grey-blue flat colour.
+- `-f/--foreground RRGGBB` - surface colour for triangles that carry no
+  material colour (all STL, most glTF); 3MF material colours still win. The
+  colour is pre-shaded: its hue is kept exactly and only brightness varies
+  with the triangle normal (`RenderColors::shadeForeground`, brightness
+  `0.55 + 0.45 * lambert`), so faces stay distinguishable. The default is the
+  shaded grey-blue flat colour, and `shadeForeground` stays false everywhere
+  it is not set, so moving a camera or leaving `-f` out does not change any
+  existing output.
 - `-b/--background RRGGBB` - composites rendered images onto an opaque
   background; default is transparent. Both colour flags accept `#rrggbb`,
   `#rgb` and an ignored trailing alpha, have no effect on embedded previews
@@ -171,7 +176,8 @@ out:
 build items), `readSTL`, `renderFacesToRGBA` (camera, painter's sort,
 4x4 supersampled rasteriser; uncovered pixels stay transparent, so the PNG
 has a transparent background and anti-aliased edges; `RenderColors` carries
-optional foreground/background colours; `ViewRotation` is an absolute camera
+optional foreground/background colours and `shadeForeground`, which scales
+the foreground's brightness per triangle instead of painting it flat; `ViewRotation` is an absolute camera
 orbit: elevation, yaw and roll),
 `renderSTLToRGBA`,
 `readModel`/`renderToRGBA`,

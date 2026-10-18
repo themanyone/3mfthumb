@@ -281,10 +281,11 @@ void printUsage(std::ostream &out) {
          "  -z, --spin        swing the camera about the vertical axis; 0"
          " faces\n"
          "                    the model's front (default 35)\n"
-         "  -f, --foreground  colour, as RRGGBB or #RRGGBB, for triangles"
-         " without a\n"
-         "                    material colour (STL and most glTF); default is"
-         " shaded grey\n"
+         "  -f, --foreground  surface colour, as RRGGBB or #RRGGBB, for"
+         " triangles\n"
+         "                    without a material colour (STL and most glTF);"
+         " lit faces\n"
+         "                    are lightened, default is shaded grey\n"
          "  -b, --background  background colour, same syntax; default is"
          " transparent\n"
          "  -h, --help        show this help and exit" << std::endl;
@@ -375,8 +376,10 @@ int main(int argc, char **argv) {
   // Absent colours stay null, which keeps the shaded grey triangles and the
   // transparent background.
   threemf::render::RenderColors colors;
-  if (foreground.size() == 3)
+  if (foreground.size() == 3) {
     colors.foreground = foreground.data();
+    colors.shadeForeground = true;
+  }
   if (background.size() == 3)
     colors.background = background.data();
   // Without an output path the image goes to the shared cache (-c), or

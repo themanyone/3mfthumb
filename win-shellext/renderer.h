@@ -225,10 +225,15 @@ struct Projected {
 
 /// Optional colours for rendered images. ``foreground`` paints triangles that
 /// carry no material colour (all STL and glTF meshes); ``background`` is
-/// composited behind the model, or left transparent when unset.
+/// composited behind the model, or left transparent when unset. With
+/// ``shadeForeground`` set, the foreground colour is the pre-shaded surface
+/// colour: its hue is kept exactly as given and only the brightness varies
+/// with the triangle normal, so the model keeps its shape without every
+/// triangle taking one flat shade.
 struct RenderColors {
   const uint8_t *foreground = nullptr;
   const uint8_t *background = nullptr;
+  bool shadeForeground = false;
 };
 
 /// Camera aim in degrees, absolute rather than relative to a default view.
@@ -479,9 +484,16 @@ inline bool renderFacesToRGBA(const std::vector<Face> &faces, int size,
     double r = f.r, g = f.g, b = f.b;
     if (r < 0) {
       if (colors.foreground) {
-        r = colors.foreground[0] / 255.0;
-        g = colors.foreground[1] / 255.0;
-        b = colors.foreground[2] / 255.0;
+        const double level = shadeForNormal(f.v[0], f.v[1], f.v[2], lightUnit);
+        // Pre-shaded: the requested colour is taken as the surface colour
+        // and only its brightness varies with the Lambert term, so faces
+        // keep the hue instead of every triangle getting one flat shade.
+        // Unshaded foregrounds (the default) stay exactly as requested.
+        const double brightness =
+            colors.shadeForeground ? 0.55 + 0.45 * level : 1.0;
+        r = colors.foreground[0] / 255.0 * brightness;
+        g = colors.foreground[1] / 255.0 * brightness;
+        b = colors.foreground[2] / 255.0 * brightness;
       } else {
         const double shade = shadeForNormal(f.v[0], f.v[1], f.v[2], lightUnit);
         r = 0.62 * shade;

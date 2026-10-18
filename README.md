@@ -30,8 +30,9 @@ Preview images are great. As .3mf is supposed to be the universal 3D Printing st
   omitted.
 - Rendered images have a transparent background; `-b RRGGBB` / `--background
   RRGGBB` composites them onto a solid colour instead, `-f RRGGBB` /
-  `--foreground RRGGBB` recolours triangles that have no material colour (STL
-  and most glTF), and `-h` / `--help` prints the usage text.
+  `--foreground RRGGBB` sets the surface colour of triangles that have no
+  material colour (STL and most glTF), keeping the hue while shading faces
+  by their angle to the light, and `-h` / `--help` prints the usage text.
 - `-x DEG` / `--roll` (0), `-y DEG` / `--tilt` (30, 0 to 90) and `-z DEG` /
   `--spin` (35) aim the camera about its line of sight, above the plate and
   around it. The values are absolute: `-y 0` looks at the model head-on,
