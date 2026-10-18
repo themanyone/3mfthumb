@@ -87,6 +87,9 @@ sample and inspect the output (`file out.png`, `identify -format '%[fx:mean]'`).
 
 - Options come before the filenames; `--` ends them. Unknown options print an
   error and return `1`.
+- Option values may be joined to the option (`-z30`, `-s64`, `-f00ff00`,
+  `--spin=30`) or given as the next argument (`-z 30`); a joined value that
+  is not a number or colour is an error, not a fallthrough to the next word.
 - Without an output path the image goes to the cache entry (`-c`) or, on
   Windows builds, where Explorer expects it; otherwise usage is printed and the
   exit code is `1`.

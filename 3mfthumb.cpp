@@ -244,6 +244,27 @@ bool parseColor(const std::string &text, std::vector<uint8_t> &rgb) {
   return true;
 }
 
+/// Split an option from a value written joined to it, ``-z30`` or
+/// ``--spin=30``, into ``name`` and ``text``. Returns false when the option
+/// carries no joined value and its value, if any, is the next argument.
+bool splitOption(const std::string &argument, std::string &name,
+                 std::string &text) {
+  const size_t equals = argument.find('=');
+  if (equals != std::string::npos) {
+    name = argument.substr(0, equals);
+    text = argument.substr(equals + 1);
+    return true;
+  }
+  if (argument.size() > 2 && argument[0] == '-' && argument[1] != '-') {
+    name = argument.substr(0, 2);
+    text = argument.substr(2);
+    return true;
+  }
+  name = argument;
+  text.clear();
+  return false;
+}
+
 void printUsage(std::ostream &out) {
   out << "Usage: 3mfthumb [-r] [-c] [-s N] [-x DEG] [-y DEG] [-z DEG] "
          "[-f RRGGBB] [-b RRGGBB] <file.3mf|file.stl|file.glb> "
@@ -278,46 +299,64 @@ int main(int argc, char **argv) {
   int argIndex = 1;
   for (; argIndex < argc && argv[argIndex][0] == '-' && argv[argIndex][1];
        ++argIndex) {
-    const std::string option = argv[argIndex];
+    std::string option, joined;
+    const bool hasJoined = splitOption(argv[argIndex], option, joined);
+    const auto value = [&](std::string &out) {
+      if (hasJoined) {
+        out = joined;
+        return true;
+      }
+      if (argIndex + 1 >= argc)
+        return false;
+      out = argv[++argIndex];
+      return true;
+    };
+    const auto number = [&](double &out) {
+      std::string text;
+      if (!value(text))
+        return false;
+      char *end = nullptr;
+      out = std::strtod(text.c_str(), &end);
+      return end != text.c_str() && *end == '\0';
+    };
     if (option == "-r" || option == "--render") {
       forceRender = true;
     } else if (option == "-c" || option == "--cache") {
       useCommonThumbnailCache = true;
     } else if (option == "-s" || option == "--size") {
-      if (argIndex + 1 < argc) {
-        size = std::atoi(argv[++argIndex]);
-        if (size < 16 || size > 4096)
-          size = 256;
-      }
+      double requested = 0;
+      if (number(requested))
+        size = static_cast<int>(requested);
+      if (size < 16 || size > 4096)
+        size = 256;
     } else if (option == "-x" || option == "--roll") {
-      if (argIndex + 1 >= argc) {
+      if (!number(rotation.x)) {
         std::cerr << "3mfthumb: --roll wants an angle in degrees" << std::endl;
         return 1;
       }
-      rotation.x = std::atof(argv[++argIndex]);
     } else if (option == "-y" || option == "--tilt") {
-      const bool haveValue = argIndex + 1 < argc;
-      const double degrees = haveValue ? std::atof(argv[++argIndex]) : -1;
-      if (!haveValue || degrees < 0 || degrees > 90) {
+      double degrees = -1;
+      if (!number(degrees) || degrees < 0 || degrees > 90) {
         std::cerr << "3mfthumb: --tilt wants an angle from 0 to 90 degrees"
                   << std::endl;
         return 1;
       }
       rotation.y = degrees;
     } else if (option == "-z" || option == "--spin") {
-      if (argIndex + 1 >= argc) {
+      if (!number(rotation.z)) {
         std::cerr << "3mfthumb: --spin wants an angle in degrees" << std::endl;
         return 1;
       }
-      rotation.z = std::atof(argv[++argIndex]);
     } else if (option == "-f" || option == "--foreground") {
-      if (argIndex + 1 >= argc || !parseColor(argv[++argIndex], foreground)) {
+      std::string text;
+      if (!value(text) || !parseColor(text, foreground)) {
         std::cerr << "3mfthumb: --foreground wants a hex colour, such as"
                      " ff0000 or #ff0000" << std::endl;
         return 1;
       }
     } else if (option == "-b" || option == "--background") {
-      if (argIndex + 1 >= argc || !parseColor(argv[++argIndex], background)) {
+      std::string text;
+      if (!value(text) || !parseColor(text, background)) {
         std::cerr << "3mfthumb: --background wants a hex colour, such as"
                      " 1e1e1e or #ffffff" << std::endl;
         return 1;
