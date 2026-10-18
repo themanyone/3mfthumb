@@ -1,8 +1,6 @@
 # 3mfthumb
 
-Show 3MF and STL previews in file managers: use the package's embedded thumbnail image, or render the meshes when there is none.
-
-Preview images are great. As .3mf is supposed to be the universal 3D Printing standard, and adoption is expected to be rapid, we should be able to see embedded thumbnail image previews for them in file managers like `pcmanfm`, `nautilus`, or even Windows `explorer`.
+Show 3MF, STL, & GLTF previews in file managers such as `pcmanfm`, `nautilus`, and even Windows `explorer`. Displays the assets' embedded thumbnail images, with fallback to mesh rendering.
 
 <div style="text-align: center;">
     <figure>
@@ -16,76 +14,53 @@ Preview images are great. As .3mf is supposed to be the universal 3D Printing st
 
 **1.2.4**
 
-- `-f RRGGBB` / `--foreground` is now a pre-shaded surface colour: the hue is
-  kept as given and only brightness varies with each face's angle to the
-  light, so STL and glTF models keep their shape instead of every triangle
-  taking one flat shade. Output without `-f` is unchanged.
+- Fix shading. See Install Preferences below.
 - Option values may be written joined to the flag (`-z90`, `-s128`,
   `--spin=90`), as well as separated by a space.
 
 **1.2.3**
 
 - Render `.glb` (binary glTF) files, and register `model/gltf-binary` in
-  `3mf.thumbnailer` and the KDE plugin. A preview kept in the asset's
-  `extras` is used when present; otherwise `gltf.h` flattens the scene's
-  node hierarchy and materials into the same triangle renderer as 3MF and
-  STL. Draco- and meshopt-compressed meshes are not decoded and are skipped.
-- Render `.stl` files (binary and ASCII) with the same renderer, and register
-  `model/stl` / `application/sla` in `3mf.thumbnailer`. STL has no embedded
-  preview, so it is always rendered. `3mfthumb model.stl out.png` now works.
-- New `-c` / `--cache` writes the image into the shared freedesktop thumbnail
-  cache (`~/.cache/thumbnails/<group>/<md5 of file URI>.png`), and `-s N` /
-  `--size N` sets the render size (default 256). The output path may then be
-  omitted.
-- Rendered images have a transparent background; `-b RRGGBB` / `--background
-  RRGGBB` composites them onto a solid colour instead, `-f RRGGBB` /
-  `--foreground RRGGBB` sets the surface colour of triangles that have no
-  material colour (STL and most glTF), keeping the hue while shading faces
-  by their angle to the light, and `-h` / `--help` prints the usage text.
-- `-x DEG` / `--roll` (0), `-y DEG` / `--tilt` (30, 0 to 90) and `-z DEG` /
-  `--spin` (35) aim the camera about its line of sight, above the plate and
-  around it. The values are absolute: `-y 0` looks at the model head-on,
-  `-y 90` straight down, and `-z 0` faces its front.
-  Both default to 0, which is the view `3mfthumb` has always used (30 degrees
-  above the plate, 35 degrees to the right); they only affect rendered images,
-  not an embedded preview.
-- New KDE thumbnail plugin (`kde-shellext/`), so Dolphin shows 3MF and STL
-  previews. Built with CMake and installed by `make install` when Qt 6 and
-  KF6 KIO are present, and packaged separately as `3mfthumb-kde`
-  (RPM subpackage and DEB) so it never pulls Qt into non-KDE systems.
+  `3mf.thumbnailer` and the KDE plugin.
 
 **1.2.2**
 
-- `make install` / `make uninstall` now refuse to run without root, and
-  install only to `PREFIX` (`/usr`): `/usr/bin/3mfthumb` and
+- Install only to `PREFIX` (`/usr`): `/usr/bin/3mfthumb` and
   `/usr/share/thumbnailers/3mf.thumbnailer`. Nautilus runs thumbnailers in a
   bubblewrap sandbox that mounts only `/usr` and cannot exec anything from a
-  home directory; it freezes instead of showing no preview. Until Nautilus
-  changes, a `*.thumbnailer` in `~/.local/share/thumbnailers` only works if
-  its `Exec` points at a program the sandbox can reach, such as
-  `/usr/bin/3mfthumb`.
-- Dropped the `nautilus-thumbnailers.gresource` overlay and `make
-  install-nautilus`; the overlay made Nautilus hang at startup. This also
-  removes the `glib2-devel` build requirement from the RPM.
-- Both targets restart Nautilus for the desktop user (`setpriv` plus that
-  user's session bus) instead of leaving it to the user.
-- Fixed `file://` URI decoding (and `file://localhost/`), which previously
-  wrote no thumbnail at all.
+  home directory; it freezes instead of showing no preview.
+- This update fixes that.
 
 **1.2.1**
 
-- Windows Explorer renders 3MF files that have no stored thumbnail image.
+- Rendered previews extended to Windows Explorer.
 
 **1.2.0**
 
-- Render the meshes when a package has no embedded preview image, and add
-  `-r` / `--render`.
+- Render mesh when no embedded preview exists, add `-r` / `--render`.
 
 ## Get it from GitHub
 
 ```
 git clone https://github.com/themanyone/3mfthumb.git
 cd 3mfthumb
+```
+
+## Customize
+
+Obsessive tweakers can apply preferences to generated thumbnails! (The ones that do not have an embedded `.png` image.) After running `make` try this for an example (requires timg, eog, eom or similar image viewer).
+
+`./3mfthumb -z 90 -f ff0000 ./lib3mf_sdk/Examples/Files/Helix.stl out.png && timg out.png`
+
+See `./3mfthumb -h` for help, experiment, edit `3mf.thumbnailer`
+to launch with your preferred flags.
+
+Customized `3mf.thumbnailer` example:
+```
+[Thumbnailer Entry]
+TryExec=3mfthumb
+Exec=3mfthumb -z 90 -f ff0000 %i %o
+MimeType=model/stl;model/3mf;application/vnd.ms-3mfdocument;application/sla;model/gltf-binary;model/gltf+json;
 ```
 
 ## Linux dependencies
@@ -102,21 +77,6 @@ Arch
 We will assume a GNU build environment with tools like `gcc-c++`, `pkg-config` and `make`.
 
 ## Linux Build
-
-**Optional preferences.** Obsessive tweakers can apply preferences to the generated thumbnails! (The ones that do not have an embedded `.png` image.) After running `make` try this for an example (requires timg, eog, eom or similar image viewer).
-
-`./3mfthumb -z 90 -f ff0000 ./lib3mf_sdk/Examples/Files/Helix.stl out.png && timg out.png`
-
-See `./3mfthumb -h` for help, experiment, edit `3mf.thumbnailer`
-to launch with your preferred flags.
-
-Customized `3mf.thumbnailer` example:
-```
-[Thumbnailer Entry]
-TryExec=3mfthumb
-Exec=3mfthumb -z 90 -f ff0000 %i %o
-MimeType=model/stl;model/3mf;application/vnd.ms-3mfdocument;application/sla;model/gltf-binary;model/gltf+json;
-```
 
 ```
 make
