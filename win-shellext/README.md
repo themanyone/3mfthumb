@@ -83,3 +83,24 @@ regsvr32 3mfthumbprovider.dll
 `DllRegisterServer` writes only to `HKEY_CURRENT_USER\Software\Classes`,
 so this doesn't need an elevated prompt. `regsvr32 /u 3mfthumbprovider.dll`
 undoes it.
+
+## Customizing rendered thumbnails
+
+Explorer cannot pass command-line flags to an in-process handler, so the
+same options as `3mfthumb -f -b -x -y -z` are read from per-user values
+under `HKEY_CURRENT_USER\Software\3mfthumb` on every thumbnail:
+
+```
+reg add HKCU\Software\3mfthumb /v Foreground /d 00aa55 /f
+reg add HKCU\Software\3mfthumb /v Background /d 202020 /f
+reg add HKCU\Software\3mfthumb /v Roll /d 0 /f
+reg add HKCU\Software\3mfthumb /v Tilt /d 30 /f
+reg add HKCU\Software\3mfthumb /v Spin /d 35 /f
+```
+
+Colours accept `RRGGBB`, `#RRGGBB` or `#RGB`; angles are degrees. Missing or
+malformed values fall back to the built-in look. The values never touch 3MF
+or GLB files that carry their own embedded preview, which is copied
+unchanged, matching the CLI. Explorer caches thumbnails, so clear the
+`thumbcache_*.db` files under
+`%LocalAppData%\Microsoft\Windows\Explorer` to see the change.

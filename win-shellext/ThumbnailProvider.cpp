@@ -46,6 +46,8 @@
 #include <wincodec.h>
 #include <string>
 #include <vector>
+#include <cwchar>
+#include <cwctype>
 #include <algorithm>
 #include <new>
 
@@ -91,6 +93,85 @@ static std::string WideToUtf8(const std::wstring &w)
     std::string s(len, 0);
     WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(), &s[0], len, nullptr, nullptr);
     return s;
+}
+
+// Default look for rendered thumbnails, overridden per user by the
+// HKCU\Software\3mfthumb values Foreground, Background, Roll, Tilt and Spin
+// (the same forms as 3mfthumb's -f, -b, -x, -y and -z). Absent or malformed
+// values keep the built-in look, so an untouched install renders exactly what
+// the Linux build does. Read on every thumbnail: the registry is a cheap read
+// and edits take effect without restarting Explorer.
+struct ThumbnailOptions
+{
+    std::vector<uint8_t> foreground;
+    std::vector<uint8_t> background;
+    threemf::render::ViewRotation rotation;
+    threemf::render::RenderColors colors;
+};
+
+// Parse RRGGBB, #RRGGBB or #RGB. Returns false for anything else.
+static bool ParseColor(const std::wstring &text, std::vector<uint8_t> &rgb)
+{
+    std::wstring s;
+    for (wchar_t c : text)
+        if (c != L'#' && c != L' ')
+            s += c;
+    if (s.size() == 3)
+        s = { s[0], s[0], s[1], s[1], s[2], s[2] };
+    if (s.size() != 6) return false;
+    rgb.assign(3, 0);
+    for (size_t i = 0; i < 3; i++) {
+        wchar_t hi = s[i * 2], lo = s[i * 2 + 1];
+        if (!iswxdigit(hi) || !iswxdigit(lo)) return false;
+        rgb[i] = (uint8_t)(std::stoi(std::wstring{ hi, lo }, nullptr, 16));
+    }
+    return true;
+}
+
+// Parse a degree value, or keep the current one when it is not a number.
+static void ParseAngle(const std::wstring &text, double &degrees)
+{
+    wchar_t *end = nullptr;
+    double value = wcstod(text.c_str(), &end);
+    if (end != text.c_str() && *end == L'\0') degrees = value;
+}
+
+static ThumbnailOptions LoadThumbnailOptions()
+{
+    ThumbnailOptions options;
+    HKEY key;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\3mfthumb", 0, KEY_READ,
+                      &key) != ERROR_SUCCESS)
+        return options;
+
+    auto readString = [key](const wchar_t *name, std::wstring &out) {
+        WCHAR buf[64];
+        DWORD size = sizeof(buf);
+        DWORD type = 0;
+        if (RegQueryValueExW(key, name, nullptr, &type, (LPBYTE)buf, &size) ==
+                ERROR_SUCCESS && type == REG_SZ)
+            out.assign(buf, size / sizeof(WCHAR));
+    };
+
+    std::wstring text;
+    readString(L"Foreground", text);
+    if (ParseColor(text, options.foreground)) {
+        options.colors.foreground = options.foreground.data();
+        options.colors.shadeForeground = true;
+    }
+    text.clear();
+    readString(L"Background", text);
+    if (ParseColor(text, options.background))
+        options.colors.background = options.background.data();
+    readString(L"Roll", text);
+    ParseAngle(text, options.rotation.x);
+    readString(L"Tilt", text);
+    ParseAngle(text, options.rotation.y);
+    readString(L"Spin", text);
+    ParseAngle(text, options.rotation.z);
+
+    RegCloseKey(key);
+    return options;
 }
 
 // Decode PNG bytes via WIC into a top-down 32bpp premultiplied-alpha DIB,
@@ -298,6 +379,7 @@ public:
         if (!m_initialized) return E_UNEXPECTED;
 
         const std::string path = WideToUtf8(m_filePath);
+        const ThumbnailOptions options = LoadThumbnailOptions();
         if (path.size() > 4 &&
             (path.compare(path.size() - 4, 4, ".glb") == 0 ||
              path.compare(path.size() - 4, 4, ".GLB") == 0)) {
@@ -308,7 +390,9 @@ public:
                     std::vector<Lib3MF_uint8>(image.begin(), image.end()), cx,
                     phbmp, pdwAlpha);
             std::vector<uint8_t> pixels;
-            if (!threemf::gltf::renderGLBToRGBA(path, (int)cx, pixels))
+            if (!threemf::gltf::renderGLBToRGBA(path, (int)cx, pixels,
+                                               options.colors,
+                                               options.rotation))
                 return S_FALSE;
             return CreateHBITMAPFromPixels(pixels, cx, phbmp, pdwAlpha);
         }
@@ -332,7 +416,9 @@ public:
             // No stored preview: draw the meshes the same way the Linux
             // build does, then wrap the pixels in an HBITMAP.
             std::vector<uint8_t> pixels;
-            if (!threemf::render::renderToRGBA(model, (int)cx, pixels))
+            if (!threemf::render::renderToRGBA(model, (int)cx, pixels,
+                                               options.colors,
+                                               options.rotation))
                 return S_FALSE;
             return CreateHBITMAPFromPixels(pixels, cx, phbmp, pdwAlpha);
         } catch (std::exception &) {

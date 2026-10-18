@@ -63,6 +63,23 @@ Exec=3mfthumb -z 90 -f ff0000 %i %o
 MimeType=model/stl;model/3mf;application/vnd.ms-3mfdocument;application/sla;model/gltf-binary;model/gltf+json;
 ```
 
+**Windows Customization.** Explorer reads the same options from per-user registry values
+instead, since the shell extension has no command line:
+
+```
+reg add HKCU\Software\3mfthumb /v Foreground /d ff0000 /f
+reg add HKCU\Software\3mfthumb /v Background /d 202020 /f
+reg add HKCU\Software\3mfthumb /v Roll /d 0 /f
+reg add HKCU\Software\3mfthumb /v Tilt /d 30 /f
+reg add HKCU\Software\3mfthumb /v Spin /d 90 /f
+```
+
+`Foreground`/`Background` accept `RRGGBB`, `#RRGGBB` or `#RGB`; the angles
+are degrees and take any value. Anything missing or malformed falls back to
+the default look, and files with an embedded preview are still copied
+untouched. Delete the `thumbcache_*.db` files under
+`%LocalAppData%\Microsoft\Windows\Explorer` to see the change.
+
 ## Linux dependencies
 
 Fedora, Centos.
