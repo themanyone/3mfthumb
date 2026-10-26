@@ -83,7 +83,7 @@ untouched. Delete the `thumbcache_*.db` files under
 ## Linux dependencies
 
 Fedora, Centos.
-`dnf install libzip-devel lib3mf-devel cairo-devel zlib-ng-devel`
+`dnf install libzip-devel lib3mf-devel cairo-devel zlib-ng-devel gcc-c++ make pkgconf-pkg-config`
 
 Ubuntu, Debian.
 `apt install libzip-dev lib3mf-dev libcairo2-dev zlib1g-dev`
