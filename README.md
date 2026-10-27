@@ -10,6 +10,19 @@ Show 3MF, STL, & GLTF previews in file managers such as `pcmanfm`, `nautilus`, a
     </figure>
 </div>
 
+## Installers
+
+Try one of the Windows & Linux installers in [Latest Releases](https://github.com/themanyone/3mfthumb/releases).
+
+**Roll your own.**
+- [Get Dependencies](#linux-dependencies)
+- [Build Fedora RPM](#fedora-rpm)
+- [Debian / Ubuntu DEB](#debian--ubuntu-deb)
+- [Build other Linux](#linux-build)
+- [Make Windows installer](#windows-install)
+
+**[Customizing](#customizing).**
+
 ## Changelog
 
 **1.2.4**
@@ -46,7 +59,7 @@ git clone https://github.com/themanyone/3mfthumb.git
 cd 3mfthumb
 ```
 
-## Customize
+## Customizing
 
 Obsessive tweakers can apply preferences to generated thumbnails! (The ones that do not have an embedded `.png` image.) After running `make` try this for an example (requires timg, eog, eom or similar image viewer).
 
@@ -122,8 +135,7 @@ incompatible with the direciton Nautilus & other file managers are going.
 
 Any `~/.local` copy left over from older versions should be removed,
 together with the old `~/.local/lib64/nautilus/extensions-4/nautilus-thumbnailers.gresource`
-overlay (`make install-nautilus`, since removed), which made Nautilus hang at
-startup:
+overlay (`make install-nautilus`, which wasn't maintainable).
 
 ```
 rm -f ~/.local/bin/3mfthumb ~/.local/share/thumbnailers/3mf.thumbnailer \
@@ -391,10 +403,9 @@ earlier version of this README suggested pointing a `ThumbnailHandler`
 registry value straight at `3mfthumb.exe` -- that doesn't work, since that
 registry slot expects a CLSID, not an executable path.)
 
-The [`win-shellext/`](win-shellext/) directory has the real fix: a small
-COM shell extension DLL that reuses the same lib3mf extraction logic and
-hands Explorer a proper thumbnail bitmap. See
-[`win-shellext/README.md`](win-shellext/README.md) for build and install
+The [`win-shellext/`](win-shellext/) directory has the COM shell extension
+DLL that reuses the same lib3mf extraction logic and hands Explorer a
+thumbnail bitmap. See [`win-shellext/README.md`](win-shellext/README.md) for build and install
 instructions. Summary:
 
 ```
