@@ -59,7 +59,7 @@ one mesh renderer, `win-shellext/renderer.h`.
 - `debian/` is also a full `debhelper` source package (two binary packages,
   `rules` stages files itself). Only the `make-deb.sh` path has been exercised
   (on Fedora).
-- `./3mfthumb [-r] [-c] [-s N] [-x DEG] [-y DEG] [-z DEG] [-f RRGGBB]
+- `./3mfthumb [-r] [--arrange] [-c] [-s N] [-x DEG] [-y DEG] [-z DEG] [-f RRGGBB]
   [-b RRGGBB]
   file.3mf|file.stl [out.png]` - see CLI contract.
 - **KDE plugin**: `cmake -S kde-shellext -B build-kde && cmake --build build-kde`.
@@ -93,7 +93,7 @@ sample and inspect the output (`file out.png`, `identify -format '%[fx:mean]'`).
 
 ## CLI contract
 
-`3mfthumb [-r] [-c] [-s N] [-x DEG] [-y DEG] [-z DEG] [-f RRGGBB] [-b RRGGBB]
+`3mfthumb [-r] [--arrange] [-c] [-s N] [-x DEG] [-y DEG] [-z DEG] [-f RRGGBB] [-b RRGGBB]
 <file.3mf|file.stl> [output.png]`
 
 - Options come before the filenames; `--` ends them. Unknown options print an
@@ -105,6 +105,11 @@ sample and inspect the output (`file out.png`, `identify -format '%[fx:mean]'`).
   Windows builds, where Explorer expects it; otherwise usage is printed and the
   exit code is `1`.
 - `-r/--render` ignores an embedded preview and renders the meshes.
+- `--arrange` packs 3MF build-item triangle silhouettes in the selected
+  camera view, placing parts into empty regions inside other items' projected
+  bounds. It ignores saved translations, retains each item's rotation/scale,
+  uses an orthographic fit focused on the main silhouette coverage, and
+  bypasses embedded previews. It has no effect on STL or GLB inputs.
 - `-c/--cache` additionally writes the freedesktop thumbnail cache entry:
   `<md5 of "file://<absolute path>">.png` under `$XDG_CACHE_HOME/thumbnails`
   (or `~/.cache/thumbnails`), in the `normal` (<=128), `large` (<=256) or
@@ -172,13 +177,14 @@ out:
    `QueryReader("3mf")->ReadFromFile()`, then
    `HasPackageThumbnailAttachment()`/`GetPackageThumbnailAttachment()` and
    `WriteToFile()`.
-5. No preview or `-r` -> `threemf::render::renderToRGBA()` ->
+5. No preview, `-r` or `--arrange` -> `threemf::render::renderToRGBA()` ->
    `renderFacesToRGBA()`; `writePixels()` paints it into a Cairo surface on
    Linux or uses `writePNG()` on Windows.
 6. All Lib3MF calls throw `std::exception`; caught and reported as exit `1`.
 
 `renderer.h` structure: `Face`/`Vertex`, `collectFaces`/`collectObject` (3MF
-build items), `readSTL`, `renderFacesToRGBA` (camera, painter's sort,
+build items; `readModel` can pack their camera-projected silhouettes when
+arranging), `readSTL`, `renderFacesToRGBA` (camera, painter's sort,
 4x4 supersampled rasteriser; uncovered pixels stay transparent, so the PNG
 has a transparent background and anti-aliased edges; `RenderColors` carries
 optional foreground/background colours and `shadeForeground`, which scales

@@ -35,6 +35,7 @@
 #include <cstring>
 #include <limits>
 #include <string>
+#include <utility>
 #include <vector>
 #if defined(THREEMF_USE_DYNAMIC_BINDING) || defined(_WIN32)
 // The shell extension loads lib3mf.dll by absolute path (see
@@ -247,12 +248,10 @@ struct ViewRotation {
   double z = 35.0;
 };
 
-/// Collect the triangles of one mesh object that ``objectID`` names. Build
-/// items are skipped on purpose: slicers store a copy of the model for the
-/// build section (already arranged on the plate) plus the originals as plain
-/// resources, and drawing both renders every part twice.
+/// Collect the triangles of one mesh object that ``objectID`` names.
 inline void collectObject(Lib3MF::PModel model, Lib3MF_uint32 objectID,
-                          std::vector<Face> &faces, int depth = 0) {
+                          const Affine &xform, std::vector<Face> &faces,
+                          int depth = 0) {
   if (depth > 8)
     return;
   Lib3MF::PObject object;
@@ -270,7 +269,7 @@ inline void collectObject(Lib3MF::PModel model, Lib3MF_uint32 objectID,
   }
   if (!object)
     return;
-  collectFaces(model, object, Affine{}, faces);
+  collectFaces(model, object, xform, faces);
 }
 
 /// Reads an STL file (binary or ASCII, detected by size) into flat-shaded
@@ -368,7 +367,9 @@ inline bool readSTL(const std::string &filename, std::vector<Face> &faces) {
 inline bool renderFacesToRGBA(const std::vector<Face> &faces, int size,
                               std::vector<uint8_t> &pixels,
                               const RenderColors &colors = RenderColors(),
-                              const ViewRotation &rotation = ViewRotation()) {
+                              const ViewRotation &rotation = ViewRotation(),
+                              bool centerInView = false,
+                              const double *fitBounds = nullptr) {
   if (size <= 0 || faces.empty())
     return false;
 
@@ -402,6 +403,10 @@ inline bool renderFacesToRGBA(const std::vector<Face> &faces, int size,
                          std::numeric_limits<double>::max(),
                          std::numeric_limits<double>::max()};
   double maxCorner[3] = {-minCorner[0], -minCorner[1], -minCorner[2]};
+  double minView[3] = {std::numeric_limits<double>::max(),
+                       std::numeric_limits<double>::max(),
+                       std::numeric_limits<double>::max()};
+  double maxView[3] = {-minView[0], -minView[1], -minView[2]};
   for (const auto &f : faces)
     for (const auto &v : f.v) {
       const double p[3] = {v.x, v.y, v.z};
@@ -409,13 +414,37 @@ inline bool renderFacesToRGBA(const std::vector<Face> &faces, int size,
         minCorner[i] = std::min(minCorner[i], p[i]);
         maxCorner[i] = std::max(maxCorner[i], p[i]);
       }
+      const double projected[3] = {
+          p[0] * rolledRight[0] + p[1] * rolledRight[1] + p[2] * rolledRight[2],
+          p[0] * rolledUp[0] + p[1] * rolledUp[1] + p[2] * rolledUp[2],
+          p[0] * back[0] + p[1] * back[1] + p[2] * back[2]};
+      for (int i = 0; i < 3; ++i) {
+        minView[i] = std::min(minView[i], projected[i]);
+        maxView[i] = std::max(maxView[i], projected[i]);
+      }
     }
+  if (centerInView && fitBounds) {
+    minView[0] = fitBounds[0];
+    minView[1] = fitBounds[1];
+    maxView[0] = fitBounds[3];
+    maxView[1] = fitBounds[4];
+  }
   if (maxCorner[0] <= minCorner[0] && maxCorner[1] <= minCorner[1] &&
       maxCorner[2] <= minCorner[2])
     return false;
   double center[3], radius = 0;
-  for (int i = 0; i < 3; ++i)
-    center[i] = (minCorner[i] + maxCorner[i]) / 2;
+  double viewCenter[3] = {};
+  if (centerInView) {
+    viewCenter[0] = (minView[0] + maxView[0]) / 2;
+    viewCenter[1] = (minView[1] + maxView[1]) / 2;
+    viewCenter[2] = (minView[2] + maxView[2]) / 2;
+    for (int i = 0; i < 3; ++i)
+      center[i] = rolledRight[i] * viewCenter[0] +
+                  rolledUp[i] * viewCenter[1] + back[i] * viewCenter[2];
+  } else {
+    for (int i = 0; i < 3; ++i)
+      center[i] = (minCorner[i] + maxCorner[i]) / 2;
+  }
   for (const auto &f : faces)
     for (const auto &v : f.v) {
       double dx = v.x - center[0], dy = v.y - center[1], dz = v.z - center[2];
@@ -431,10 +460,24 @@ inline bool renderFacesToRGBA(const std::vector<Face> &faces, int size,
   const double lightUnit[3] = {light[0] / lightLength, light[1] / lightLength,
                                light[2] / lightLength};
 
-  // Far enough that the bounding sphere projects to about 85% of the frame.
+  // The normal view fits a bounding sphere. Rearranged parts use an
+  // orthographic fit to the packed camera-space bounds instead.
   const double fov = 30.0 * pi / 180.0;
   const double focal = 0.5 * size / std::tan(fov / 2);
-  const double cameraDistance = radius / std::sin(fov / 2);
+  double cameraDistance = radius / std::sin(fov / 2);
+  double orthographicScale = 0;
+  if (centerInView) {
+    const double halfRight =
+        std::max(viewCenter[0] - minView[0], maxView[0] - viewCenter[0]);
+    const double halfUp =
+        std::max(viewCenter[1] - minView[1], maxView[1] - viewCenter[1]);
+    const double frameHalf = size * 0.495;
+    const double halfBack =
+        std::max(viewCenter[2] - minView[2], maxView[2] - viewCenter[2]);
+    const double viewRadius = std::max(halfRight, halfUp);
+    orthographicScale = viewRadius > 0 ? frameHalf / viewRadius : 1;
+    cameraDistance = halfBack + std::max(radius, 1.0);
+  }
   const double cameraX = center[0] + back[0] * cameraDistance;
   const double cameraY = center[1] + back[1] * cameraDistance;
   const double cameraZ = center[2] + back[2] * cameraDistance;
@@ -459,8 +502,13 @@ inline bool renderFacesToRGBA(const std::vector<Face> &faces, int size,
         visible = false;
         break;
       }
-      p.v[i].x = size / 2.0 + focal * x / depth;
-      p.v[i].y = size / 2.0 - focal * y / depth;
+      if (centerInView) {
+        p.v[i].x = size / 2.0 + orthographicScale * x;
+        p.v[i].y = size / 2.0 - orthographicScale * y;
+      } else {
+        p.v[i].x = size / 2.0 + focal * x / depth;
+        p.v[i].y = size / 2.0 - focal * y / depth;
+      }
       p.depth += depth / 3.0;
     }
     if (visible)
@@ -594,15 +642,422 @@ inline bool renderSTLToRGBA(const std::string &filename, int size,
   return renderFacesToRGBA(faces, size, pixels, colors, rotation);
 }
 
-/// Flattens a model's build items into triangle soup.
-inline void readModel(Lib3MF::PModel model, std::vector<Face> &faces) {
+struct ViewBounds {
+  double minRight, minUp, minBack;
+  double maxRight, maxUp, maxBack;
+};
+
+struct SilhouetteMask {
+  int width, height;
+  double originRight, originUp;
+  size_t occupiedCount = 0;
+  int minX, minY, maxX, maxY;
+  std::vector<std::vector<int>> occupiedRows;
+};
+
+inline ViewBounds boundsInView(const std::vector<Face> &faces,
+                               const double right[3], const double up[3],
+                               const double back[3]) {
+  ViewBounds bounds{std::numeric_limits<double>::max(),
+                    std::numeric_limits<double>::max(),
+                    std::numeric_limits<double>::max(),
+                    -std::numeric_limits<double>::max(),
+                    -std::numeric_limits<double>::max(),
+                    -std::numeric_limits<double>::max()};
+  for (const auto &face : faces)
+    for (const auto &vertex : face.v) {
+      const double point[3] = {vertex.x, vertex.y, vertex.z};
+      double projected[3] = {};
+      const double *axes[3] = {right, up, back};
+      for (int axis = 0; axis < 3; ++axis)
+        for (int coordinate = 0; coordinate < 3; ++coordinate)
+          projected[axis] += point[coordinate] * axes[axis][coordinate];
+      bounds.minRight = std::min(bounds.minRight, projected[0]);
+      bounds.minUp = std::min(bounds.minUp, projected[1]);
+      bounds.minBack = std::min(bounds.minBack, projected[2]);
+      bounds.maxRight = std::max(bounds.maxRight, projected[0]);
+      bounds.maxUp = std::max(bounds.maxUp, projected[1]);
+      bounds.maxBack = std::max(bounds.maxBack, projected[2]);
+    }
+  return bounds;
+}
+
+inline bool insideProjectedTriangle(double x, double y, const double p[3][2]) {
+  const auto cross = [](double ax, double ay, double bx, double by) {
+    return ax * by - ay * bx;
+  };
+  const double a = cross(p[1][0] - p[0][0], p[1][1] - p[0][1],
+                         x - p[0][0], y - p[0][1]);
+  const double b = cross(p[2][0] - p[1][0], p[2][1] - p[1][1],
+                         x - p[1][0], y - p[1][1]);
+  const double c = cross(p[0][0] - p[2][0], p[0][1] - p[2][1],
+                         x - p[2][0], y - p[2][1]);
+  return (a >= -1e-9 && b >= -1e-9 && c >= -1e-9) ||
+         (a <= 1e-9 && b <= 1e-9 && c <= 1e-9);
+}
+
+/// Rasterize the triangles' camera-facing silhouettes into a coarse mask.
+/// The one-cell dilation keeps independently packed meshes from touching at
+/// the mask resolution while allowing other parts to occupy empty regions
+/// inside this object's bounding rectangle.
+inline SilhouetteMask makeSilhouetteMask(const std::vector<Face> &faces,
+                                         const ViewBounds &bounds,
+                                         const double right[3],
+                                         const double up[3],
+                                         double cellSize) {
+  const int innerWidth = std::max(
+      1, static_cast<int>(std::ceil((bounds.maxRight - bounds.minRight) /
+                                    cellSize)));
+  const int innerHeight = std::max(
+      1, static_cast<int>(std::ceil((bounds.maxUp - bounds.minUp) /
+                                    cellSize)));
+  SilhouetteMask mask{innerWidth + 3, innerHeight + 3,
+                      bounds.minRight - cellSize, bounds.minUp - cellSize};
+  mask.minX = mask.width;
+  mask.minY = mask.height;
+  mask.maxX = mask.maxY = -1;
+  std::vector<uint8_t> raw(static_cast<size_t>(mask.width) * mask.height, 0);
+  const auto mark = [&](double x, double y) {
+    const int ix = std::max(0, std::min(mask.width - 1,
+                                      static_cast<int>(std::floor(x))));
+    const int iy = std::max(0, std::min(mask.height - 1,
+                                      static_cast<int>(std::floor(y))));
+    raw[static_cast<size_t>(iy) * mask.width + ix] = 1;
+  };
+  for (const auto &face : faces) {
+    double p[3][2];
+    for (int i = 0; i < 3; ++i) {
+      const Vertex &v = face.v[i];
+      p[i][0] = (v.x * right[0] + v.y * right[1] + v.z * right[2] -
+                 bounds.minRight) /
+                    cellSize +
+                1;
+      p[i][1] = (v.x * up[0] + v.y * up[1] + v.z * up[2] - bounds.minUp) /
+                    cellSize +
+                1;
+      mark(p[i][0], p[i][1]);
+    }
+    const double area = (p[1][0] - p[0][0]) * (p[2][1] - p[0][1]) -
+                        (p[2][0] - p[0][0]) * (p[1][1] - p[0][1]);
+    if (std::fabs(area) < 1e-10) {
+      for (int edge = 0; edge < 3; ++edge) {
+        const double dx = p[(edge + 1) % 3][0] - p[edge][0];
+        const double dy = p[(edge + 1) % 3][1] - p[edge][1];
+        const int steps = std::max(1, static_cast<int>(
+                                          std::ceil(std::max(std::fabs(dx),
+                                                             std::fabs(dy)) *
+                                                             2)));
+        for (int step = 0; step <= steps; ++step) {
+          const double t = static_cast<double>(step) / steps;
+          mark(p[edge][0] + dx * t, p[edge][1] + dy * t);
+        }
+      }
+      continue;
+    }
+    const int x0 = std::max(0, static_cast<int>(std::floor(
+                                   std::min({p[0][0], p[1][0], p[2][0]}))));
+    const int x1 = std::min(mask.width - 1,
+                            static_cast<int>(std::ceil(std::max(
+                                {p[0][0], p[1][0], p[2][0]}))));
+    const int y0 = std::max(0, static_cast<int>(std::floor(
+                                   std::min({p[0][1], p[1][1], p[2][1]}))));
+    const int y1 = std::min(mask.height - 1,
+                            static_cast<int>(std::ceil(std::max(
+                                {p[0][1], p[1][1], p[2][1]}))));
+    for (int y = y0; y <= y1; ++y)
+      for (int x = x0; x <= x1; ++x)
+        if (insideProjectedTriangle(x + 0.5, y + 0.5, p) ||
+            insideProjectedTriangle(x + 0.25, y + 0.25, p) ||
+            insideProjectedTriangle(x + 0.75, y + 0.25, p) ||
+            insideProjectedTriangle(x + 0.25, y + 0.75, p) ||
+            insideProjectedTriangle(x + 0.75, y + 0.75, p))
+          raw[static_cast<size_t>(y) * mask.width + x] = 1;
+  }
+
+  std::vector<uint8_t> dilated(raw.size(), 0);
+  for (int y = 0; y < mask.height; ++y)
+    for (int x = 0; x < mask.width; ++x) {
+      if (!raw[static_cast<size_t>(y) * mask.width + x])
+        continue;
+      for (int dy = -1; dy <= 1; ++dy)
+        for (int dx = -1; dx <= 1; ++dx) {
+          const int nx = x + dx, ny = y + dy;
+          if (nx >= 0 && nx < mask.width && ny >= 0 && ny < mask.height)
+            dilated[static_cast<size_t>(ny) * mask.width + nx] = 1;
+        }
+    }
+  mask.occupiedRows.resize(mask.height);
+  for (int y = 0; y < mask.height; ++y)
+    for (int x = 0; x < mask.width; ++x)
+      if (dilated[static_cast<size_t>(y) * mask.width + x]) {
+        mask.occupiedRows[y].push_back(x);
+        ++mask.occupiedCount;
+        mask.minX = std::min(mask.minX, x);
+        mask.minY = std::min(mask.minY, y);
+        mask.maxX = std::max(mask.maxX, x);
+        mask.maxY = std::max(mask.maxY, y);
+      }
+  if (mask.occupiedCount &&
+      (mask.minX != 0 || mask.minY != 0 || mask.maxX != mask.width - 1 ||
+       mask.maxY != mask.height - 1)) {
+    const int croppedWidth = mask.maxX - mask.minX + 1;
+    const int croppedHeight = mask.maxY - mask.minY + 1;
+    std::vector<std::vector<int>> croppedRows(croppedHeight);
+    for (int y = mask.minY; y <= mask.maxY; ++y)
+      for (int x : mask.occupiedRows[y])
+        if (x >= mask.minX && x <= mask.maxX)
+          croppedRows[y - mask.minY].push_back(x - mask.minX);
+    mask.originRight += mask.minX * cellSize;
+    mask.originUp += mask.minY * cellSize;
+    mask.width = croppedWidth;
+    mask.height = croppedHeight;
+    mask.minX = mask.minY = 0;
+    mask.maxX = mask.width - 1;
+    mask.maxY = mask.height - 1;
+    mask.occupiedRows = std::move(croppedRows);
+  }
+  return mask;
+}
+
+/// Translate an instance along the camera's screen axes without changing its
+/// orientation or scale.
+inline void translateFacesInView(std::vector<Face> &faces,
+                                 const double right[3], const double up[3],
+                                 const double back[3], double dx, double dy,
+                                 double dback) {
+  for (auto &face : faces)
+    for (auto &vertex : face.v) {
+      vertex.x += right[0] * dx + up[0] * dy + back[0] * dback;
+      vertex.y += right[1] * dx + up[1] * dy + back[1] * dback;
+      vertex.z += right[2] * dx + up[2] * dy + back[2] * dback;
+    }
+}
+
+/// Flattens each build-item instance separately. When requested, pack its
+/// projected camera-space bounds into a tight grid, retaining the build-item
+/// rotation/scale and discarding its saved position.
+inline void readModel(Lib3MF::PModel model, std::vector<Face> &faces,
+                      bool arrange = false,
+                      const ViewRotation &rotation = ViewRotation(),
+                      double *fitBounds = nullptr) {
   auto buildItems = model->GetBuildItems();
+  std::vector<std::vector<Face>> instances;
   while (buildItems->MoveNext()) {
     auto item = buildItems->GetCurrent();
     if (!item)
       continue;
-    collectObject(model, item->GetObjectResourceID(), faces);
+    std::vector<Face> instance;
+    const Affine xform = arrange ? toAffine(item->GetObjectTransform())
+                                 : Affine{};
+    collectObject(model, item->GetObjectResourceID(), xform, instance);
+    if (!instance.empty())
+      instances.push_back(std::move(instance));
   }
+
+  if (!arrange) {
+    for (const auto &instance : instances)
+      faces.insert(faces.end(), instance.begin(), instance.end());
+    return;
+  }
+
+  if (instances.empty())
+    return;
+
+  const double pi = 3.14159265358979323846;
+  const double pi180 = pi / 180.0;
+  const double yaw = rotation.z * pi180;
+  const double elevation = rotation.y * pi180;
+  const double cy = std::cos(yaw), sy = std::sin(yaw);
+  const double cp = std::cos(elevation), sp = std::sin(elevation);
+  const double baseRight[3] = {-sy, cy, 0};
+  const double baseUp[3] = {-cy * sp, -sy * sp, cp};
+  const double back[3] = {cy * cp, sy * cp, sp};
+  const double roll = rotation.x * pi180;
+  const double cr = std::cos(roll), sr = std::sin(roll);
+  const double right[3] = {baseRight[0] * cr + baseUp[0] * sr,
+                           baseRight[1] * cr + baseUp[1] * sr,
+                           baseRight[2] * cr + baseUp[2] * sr};
+  const double up[3] = {baseUp[0] * cr - baseRight[0] * sr,
+                        baseUp[1] * cr - baseRight[1] * sr,
+                        baseUp[2] * cr - baseRight[2] * sr};
+
+  std::vector<ViewBounds> bounds;
+  bounds.reserve(instances.size());
+  double maxDimension = 0;
+  for (const auto &instance : instances) {
+    bounds.push_back(boundsInView(instance, right, up, back));
+    const ViewBounds &box = bounds.back();
+    const double width = box.maxRight - box.minRight;
+    const double height = box.maxUp - box.minUp;
+    maxDimension = std::max({maxDimension, width, height});
+  }
+  if (maxDimension <= 0)
+    maxDimension = 1;
+  const double cellSize = maxDimension / 256.0;
+  std::vector<SilhouetteMask> masks;
+  masks.reserve(instances.size());
+  size_t totalOccupied = 0;
+  int maxMaskWidth = 0;
+  for (size_t i = 0; i < instances.size(); ++i) {
+    masks.push_back(
+        makeSilhouetteMask(instances[i], bounds[i], right, up, cellSize));
+    totalOccupied += masks.back().occupiedCount;
+    maxMaskWidth = std::max(maxMaskWidth, masks.back().width);
+  }
+  // Pack actual projected triangle coverage, not whole bounding rectangles.
+  // This lets small parts use empty regions inside larger, complex parts.
+  const int targetWidth = std::max(
+      maxMaskWidth, static_cast<int>(std::ceil(std::sqrt(totalOccupied) * 1.5)));
+  std::vector<size_t> order(instances.size());
+  for (size_t i = 0; i < order.size(); ++i)
+    order[i] = i;
+  std::stable_sort(order.begin(), order.end(), [&](size_t a, size_t b) {
+    const size_t areaA =
+        static_cast<size_t>(masks[a].width) * masks[a].height;
+    const size_t areaB =
+        static_cast<size_t>(masks[b].width) * masks[b].height;
+    return areaA > areaB;
+  });
+  std::vector<std::vector<uint8_t>> occupied;
+  bool hasLayoutBounds = false;
+  int layoutMinX = 0, layoutMinY = 0, layoutMaxX = -1, layoutMaxY = -1;
+  bool hasAllBounds = false;
+  double allBounds[6] = {};
+  for (size_t packedIndex = 0; packedIndex < instances.size(); ++packedIndex) {
+    const size_t i = order[packedIndex];
+    const SilhouetteMask &mask = masks[i];
+    const ViewBounds &box = bounds[i];
+    bool found = false;
+    int placeX = 0, placeY = 0;
+    double bestScore = std::numeric_limits<double>::max();
+    double bestCenterDistance = std::numeric_limits<double>::max();
+    for (int y = 0; y <= static_cast<int>(occupied.size()); ++y) {
+      for (int x = 0; x + mask.width <= targetWidth; ++x) {
+        bool overlaps = false;
+        for (int row = 0; row < mask.height && !overlaps; ++row) {
+          const int targetY = y + row;
+          if (targetY >= static_cast<int>(occupied.size()))
+            continue;
+          for (int column : mask.occupiedRows[row])
+            if (occupied[targetY][x + column]) {
+              overlaps = true;
+              break;
+            }
+        }
+        if (overlaps)
+          continue;
+        const int minX = hasLayoutBounds
+                             ? std::min(layoutMinX, x + mask.minX)
+                             : x + mask.minX;
+        const int minY = hasLayoutBounds
+                             ? std::min(layoutMinY, y + mask.minY)
+                             : y + mask.minY;
+        const int maxX = hasLayoutBounds
+                             ? std::max(layoutMaxX, x + mask.maxX)
+                             : x + mask.maxX;
+        const int maxY = hasLayoutBounds
+                             ? std::max(layoutMaxY, y + mask.maxY)
+                             : y + mask.maxY;
+        const double newWidth = maxX - minX + 1;
+        const double newHeight = maxY - minY + 1;
+        const double aspectPenalty = 0.15 * (newWidth - newHeight) *
+                                     (newWidth - newHeight);
+        const double score = newWidth * newHeight + aspectPenalty;
+        const double centerX = (x + mask.minX + x + mask.maxX) / 2.0;
+        const double centerY = (y + mask.minY + y + mask.maxY) / 2.0;
+        const double oldCenterX =
+            hasLayoutBounds ? (layoutMinX + layoutMaxX) / 2.0 : centerX;
+        const double oldCenterY =
+            hasLayoutBounds ? (layoutMinY + layoutMaxY) / 2.0 : centerY;
+        const double centerDistance =
+            std::fabs(centerX - oldCenterX) + std::fabs(centerY - oldCenterY);
+        if (!found || score < bestScore ||
+            (score == bestScore && centerDistance < bestCenterDistance)) {
+          found = true;
+          bestScore = score;
+          bestCenterDistance = centerDistance;
+          placeX = x;
+          placeY = y;
+        }
+      }
+    }
+    if (!found)
+      placeY = static_cast<int>(occupied.size());
+    if (placeY + mask.height > static_cast<int>(occupied.size()))
+      occupied.resize(placeY + mask.height,
+                      std::vector<uint8_t>(targetWidth, 0));
+    for (int row = 0; row < mask.height; ++row)
+      for (int column : mask.occupiedRows[row])
+        occupied[placeY + row][placeX + column] = 1;
+    if (!hasLayoutBounds) {
+      layoutMinX = placeX + mask.minX;
+      layoutMinY = placeY + mask.minY;
+      layoutMaxX = placeX + mask.maxX;
+      layoutMaxY = placeY + mask.maxY;
+      hasLayoutBounds = true;
+    } else {
+      layoutMinX = std::min(layoutMinX, placeX + mask.minX);
+      layoutMinY = std::min(layoutMinY, placeY + mask.minY);
+      layoutMaxX = std::max(layoutMaxX, placeX + mask.maxX);
+      layoutMaxY = std::max(layoutMaxY, placeY + mask.maxY);
+    }
+
+    const double centerBack = (box.minBack + box.maxBack) / 2;
+    const double dx = placeX * cellSize - mask.originRight;
+    const double dy = placeY * cellSize - mask.originUp;
+    const double dback = -centerBack;
+    translateFacesInView(instances[i], right, up, back,
+                         dx, dy, dback);
+    const double itemBounds[6] = {
+        box.minRight + dx, box.minUp + dy, box.minBack + dback,
+        box.maxRight + dx, box.maxUp + dy, box.maxBack + dback};
+    if (!hasAllBounds) {
+      std::copy(itemBounds, itemBounds + 6, allBounds);
+      hasAllBounds = true;
+    } else {
+      allBounds[0] = std::min(allBounds[0], itemBounds[0]);
+      allBounds[1] = std::min(allBounds[1], itemBounds[1]);
+      allBounds[2] = std::min(allBounds[2], itemBounds[2]);
+      allBounds[3] = std::max(allBounds[3], itemBounds[3]);
+      allBounds[4] = std::max(allBounds[4], itemBounds[4]);
+      allBounds[5] = std::max(allBounds[5], itemBounds[5]);
+    }
+  }
+  if (fitBounds && hasAllBounds) {
+    std::vector<size_t> columnCoverage(targetWidth, 0);
+    std::vector<size_t> rowCoverage(occupied.size(), 0);
+    size_t coverage = 0;
+    for (size_t y = 0; y < occupied.size(); ++y)
+      for (int x = 0; x < targetWidth; ++x)
+        if (occupied[y][x]) {
+          ++columnCoverage[x];
+          ++rowCoverage[y];
+          ++coverage;
+        }
+    // Ignore the outermost 1% of sparse mask coverage when framing, so a few
+    // isolated pixels do not shrink or offset the main arranged group.
+    const size_t trim = coverage / 100;
+    auto innerRange = [trim](const std::vector<size_t> &counts) {
+      size_t low = 0, high = counts.size() - 1;
+      size_t discarded = 0;
+      while (low < high && discarded + counts[low] <= trim)
+        discarded += counts[low++];
+      discarded = 0;
+      while (high > low && discarded + counts[high] <= trim)
+        discarded += counts[high--];
+      return std::pair<size_t, size_t>(low, high);
+    };
+    const auto xRange = innerRange(columnCoverage);
+    const auto yRange = innerRange(rowCoverage);
+    fitBounds[0] = xRange.first * cellSize;
+    fitBounds[1] = yRange.first * cellSize;
+    fitBounds[2] = allBounds[2];
+    fitBounds[3] = (xRange.second + 1) * cellSize;
+    fitBounds[4] = (yRange.second + 1) * cellSize;
+    fitBounds[5] = allBounds[5];
+  }
+  for (const auto &instance : instances)
+    faces.insert(faces.end(), instance.begin(), instance.end());
 }
 
 /// Renders the model's build items. Returns false when there is nothing to
@@ -610,12 +1065,15 @@ inline void readModel(Lib3MF::PModel model, std::vector<Face> &faces) {
 inline bool renderToRGBA(Lib3MF::PModel model, int size,
                          std::vector<uint8_t> &pixels,
                          const RenderColors &colors = RenderColors(),
-                         const ViewRotation &rotation = ViewRotation()) {
+                         const ViewRotation &rotation = ViewRotation(),
+                         bool arrange = false) {
   if (size <= 0)
     return false;
   std::vector<Face> faces;
-  readModel(model, faces);
-  return renderFacesToRGBA(faces, size, pixels, colors, rotation);
+  double fitBounds[6] = {};
+  readModel(model, faces, arrange, rotation, arrange ? fitBounds : nullptr);
+  return renderFacesToRGBA(faces, size, pixels, colors, rotation, arrange,
+                           arrange ? fitBounds : nullptr);
 }
 
 /// Encodes an RGBA buffer made by renderToRGBA as a PNG file. Kept here so
