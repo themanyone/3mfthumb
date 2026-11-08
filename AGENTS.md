@@ -76,11 +76,13 @@ one mesh renderer, `win-shellext/renderer.h`.
   -lwindowscodecs`. Register with `regsvr32` (per-user, HKCU only).
   `ThumbnailProvider.cpp` cannot receive CLI flags, so `LoadThumbnailOptions()`
   reads `HKCU\Software\3mfthumb` string values `Foreground`, `Background`,
-  `Roll`, `Tilt`, `Spin` and `Arrange` on every `GetThumbnail` and passes them
-  as `RenderColors`/`ViewRotation`/`arrange`; absent or malformed values keep
-  the default look, `Arrange` also accepts a non-zero `REG_DWORD` (or
-  `1`/`true`/`yes`/`on`), it bypasses 3MF embedded previews like `-a` and has
-  no effect on GLB, and otherwise embedded previews are still copied verbatim.
+  `Roll`, `Tilt`, `Spin`, `Arrange` and `Render` on every `GetThumbnail` and
+  passes them as `RenderColors`/`ViewRotation`/`arrange`/`render`; absent or
+  malformed values keep the default look. `Arrange` and `Render` are switches
+  that also accept a non-zero `REG_DWORD` (or `1`/`true`/`yes`/`on`): `Render`
+  mirrors `-r` and is what bypasses embedded previews, `Arrange` mirrors `-a`
+  and only changes rendered images (GLB ignores it), and otherwise embedded
+  previews are copied verbatim.
 - **CMake alternative (cross-platform only)**: the root `CMakeLists.txt` is a
   unified Linux/Windows build, tracked in git. the Makefile is
   the primary build. Cross-build: `cmake -S . -B build-win
@@ -110,8 +112,9 @@ sample and inspect the output (`file out.png`, `identify -format '%[fx:mean]'`).
 - `-a/--arrange` packs 3MF build-item triangle silhouettes in the selected
   camera view, placing parts into empty regions inside other items' projected
   bounds. It ignores saved translations, retains each item's rotation/scale,
-  uses an orthographic fit focused on the main silhouette coverage, and
-  bypasses embedded previews. It has no effect on STL or GLB inputs.
+  uses an orthographic fit focused on the main silhouette coverage, and only
+  changes rendered images: an embedded preview still wins unless `-r` is also
+  given. It has no effect on STL or GLB inputs.
 - `-c/--cache` additionally writes the freedesktop thumbnail cache entry:
   `<md5 of "file://<absolute path>">.png` under `$XDG_CACHE_HOME/thumbnails`
   (or `~/.cache/thumbnails`), in the `normal` (<=128), `large` (<=256) or
@@ -179,7 +182,8 @@ out:
    `QueryReader("3mf")->ReadFromFile()`, then
    `HasPackageThumbnailAttachment()`/`GetPackageThumbnailAttachment()` and
    `WriteToFile()`.
-5. No preview, `-r`, `-a` or `--arrange` -> `threemf::render::renderToRGBA()` ->
+5. No preview or `-r` -> `threemf::render::renderToRGBA()` (with `-a`,
+   arranged) ->
    `renderFacesToRGBA()`; `writePixels()` paints it into a Cairo surface on
    Linux or uses `writePNG()` on Windows.
 6. All Lib3MF calls throw `std::exception`; caught and reported as exit `1`.

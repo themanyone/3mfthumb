@@ -529,7 +529,7 @@ int main(int argc, char **argv) {
     reader->ReadFromFile(filename);
     // Get thumbnail attachment
     Lib3MF::PAttachment thumbnail;
-    if (!forceRender && !arrange && model->HasPackageThumbnailAttachment()) {
+    if (!forceRender && model->HasPackageThumbnailAttachment()) {
       thumbnail = model->GetPackageThumbnailAttachment();
       #ifdef WIN32
       if (thumbnailFilename.empty()) {

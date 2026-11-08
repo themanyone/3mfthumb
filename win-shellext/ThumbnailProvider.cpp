@@ -96,11 +96,12 @@ static std::string WideToUtf8(const std::wstring &w)
 }
 
 // Default look for rendered thumbnails, overridden per user by the
-// HKCU\Software\3mfthumb values Foreground, Background, Roll, Tilt, Spin and
-// Arrange (the same forms as 3mfthumb's -f, -b, -x, -y, -z and -a). Absent or
-// malformed values keep the built-in look, so an untouched install renders
-// exactly what the Linux build does. Read on every thumbnail: the registry is
-// a cheap read and edits take effect without restarting Explorer.
+// HKCU\Software\3mfthumb values Foreground, Background, Roll, Tilt, Spin,
+// Arrange and Render (the same forms as 3mfthumb's -f, -b, -x, -y, -z, -a and
+// -r). Absent or malformed values keep the built-in look, so an untouched
+// install renders exactly what the Linux build does. Read on every thumbnail:
+// the registry is a cheap read and edits take effect without restarting
+// Explorer.
 struct ThumbnailOptions
 {
     std::vector<uint8_t> foreground;
@@ -108,6 +109,7 @@ struct ThumbnailOptions
     threemf::render::ViewRotation rotation;
     threemf::render::RenderColors colors;
     bool arrange = false;
+    bool render = false;
 };
 
 // Parse RRGGBB, #RRGGBB or #RGB. Returns false for anything else.
@@ -203,6 +205,7 @@ static ThumbnailOptions LoadThumbnailOptions()
     ParseAngle(ReadStringValue(key, L"Roll"), options.rotation.x);
     ParseAngle(ReadStringValue(key, L"Tilt"), options.rotation.y);
     ParseAngle(ReadStringValue(key, L"Spin"), options.rotation.z);
+    options.render = ReadFlagValue(key, L"Render");
     options.arrange = ReadFlagValue(key, L"Arrange");
 
     RegCloseKey(key);
@@ -419,7 +422,8 @@ public:
             (path.compare(path.size() - 4, 4, ".glb") == 0 ||
              path.compare(path.size() - 4, 4, ".GLB") == 0)) {
             std::vector<uint8_t> image;
-            if (threemf::gltf::embeddedThumbnail(
+            if (!options.render &&
+                threemf::gltf::embeddedThumbnail(
                     path, std::string(m_buffer.begin(), m_buffer.end()), image))
                 return CreateHBITMAPFromImageBytes(
                     std::vector<Lib3MF_uint8>(image.begin(), image.end()), cx,
@@ -441,7 +445,7 @@ public:
             else
                 reader->ReadFromFile(path);
 
-            if (!options.arrange && model->HasPackageThumbnailAttachment()) {
+            if (!options.render && model->HasPackageThumbnailAttachment()) {
                 Lib3MF::PAttachment thumbnail = model->GetPackageThumbnailAttachment();
                 std::vector<Lib3MF_uint8> buffer;
                 thumbnail->WriteToBuffer(buffer);

@@ -28,8 +28,11 @@ Try one of the Windows & Linux installers in [Latest Releases](https://github.co
 **1.2.4**
 
 - Fix shading. See [Customize](#customize) below.
-- `-a` / `--arrange` tightly packs projected 3MF parts, placing them into empty
-  regions inside other parts' bounds; it bypasses embedded previews.
+- `-a` / `--arrange` tightly packs projected 3MF parts, placing them into
+  empty regions inside other parts' bounds. It only changes rendered images,
+  with no embedded preview, or when `-r` is used to force rendering.
+  The Windows shell extension reads the same switch from the `Arrange`
+  registry value.
 - Option values may be written joined to the flag (`-z90`, `-s128`,
   `--spin=90`), as well as separated by a space.
 
@@ -67,9 +70,15 @@ Obsessive tweakers can apply preferences to generated thumbnails! (The ones that
 
 `./3mfthumb -z 90 -f ff0000 ./lib3mf_sdk/Examples/Files/Helix.stl out.png && timg out.png`
 
-For 3MF files with multiple build items, add `-a` / `--arrange` to pack their projected silhouettes into a compact layout rather than showing saved build-plate positions. This renders the meshes even when the file contains an embedded preview; it does not apply to STL or GLB files. The camera fit follows the main packed silhouette, so tiny isolated details at the extreme edges may be cropped.
+For 3MF files with multiple build items, add `-a` / `--arrange` to pack their
+projected silhouettes into a compact layout instead of showing overlapping
+build-plate positions. `-a` only changes rendered images, when the file has no
+embedded preview, or when `-r` is used to ignore preview & force rendering.
+It has no effect on STL or GLB files. The camera fit follows the
+main packed silhouette, so tiny isolated details at the extreme edges may be
+cropped.
 
-See `./3mfthumb -h` for help, experiment, edit `3mf.thumbnailer`
+See `./3mfthumb -h` for help. Experiment. Edit `3mf.thumbnailer`
 to launch with your preferred flags.
 
 Customized `3mf.thumbnailer` example:
@@ -89,17 +98,19 @@ reg add HKCU\Software\3mfthumb /v Background /d 202020 /f
 reg add HKCU\Software\3mfthumb /v Roll /d 0 /f
 reg add HKCU\Software\3mfthumb /v Tilt /d 30 /f
 reg add HKCU\Software\3mfthumb /v Spin /d 90 /f
+reg add HKCU\Software\3mfthumb /v Render /d 1 /f
 reg add HKCU\Software\3mfthumb /v Arrange /d 1 /f
 ```
 
 `Foreground`/`Background` accept `RRGGBB`, `#RRGGBB` or `#RGB`; the angles
-are degrees and take any value. `Arrange` is a switch like `-a`: a non-zero
-`REG_DWORD`, or `1`/`true`/`yes`/`on`, packs 3MF build items into a compact
-layout and bypasses the embedded preview (GLB is unaffected). Anything
-missing or malformed falls back to the default look, and otherwise files
-with an embedded preview are still copied untouched. Delete the
-`thumbcache_*.db` files under `%LocalAppData%\Microsoft\Windows\Explorer`
-to see the change.
+are degrees and take any value. `Render` and `Arrange` are switches (a
+non-zero `REG_DWORD`, or `1`/`true`/`yes`/`on`) that match `-r` and `-a`:
+`Render` replaces an embedded preview with a rendered mesh, while `Arrange`
+packs 3MF build items into a compact layout in rendered images only (GLB is
+unaffected). So an embedded preview is rearranged only when `Render` is set
+too; without `Render`, it is copied unchanged. Anything missing or malformed
+falls back to the default look. Delete the `thumbcache_*.db` files under
+`%LocalAppData%\Microsoft\Windows\Explorer` to see the change.
 
 ## Linux dependencies
 
