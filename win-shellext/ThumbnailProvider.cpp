@@ -96,17 +96,18 @@ static std::string WideToUtf8(const std::wstring &w)
 }
 
 // Default look for rendered thumbnails, overridden per user by the
-// HKCU\Software\3mfthumb values Foreground, Background, Roll, Tilt and Spin
-// (the same forms as 3mfthumb's -f, -b, -x, -y and -z). Absent or malformed
-// values keep the built-in look, so an untouched install renders exactly what
-// the Linux build does. Read on every thumbnail: the registry is a cheap read
-// and edits take effect without restarting Explorer.
+// HKCU\Software\3mfthumb values Foreground, Background, Roll, Tilt, Spin and
+// Arrange (the same forms as 3mfthumb's -f, -b, -x, -y, -z and -a). Absent or
+// malformed values keep the built-in look, so an untouched install renders
+// exactly what the Linux build does. Read on every thumbnail: the registry is
+// a cheap read and edits take effect without restarting Explorer.
 struct ThumbnailOptions
 {
     std::vector<uint8_t> foreground;
     std::vector<uint8_t> background;
     threemf::render::ViewRotation rotation;
     threemf::render::RenderColors colors;
+    bool arrange = false;
 };
 
 // Parse RRGGBB, #RRGGBB or #RGB. Returns false for anything else.
@@ -136,6 +137,55 @@ static void ParseAngle(const std::wstring &text, double &degrees)
     if (end != text.c_str() && *end == L'\0') degrees = value;
 }
 
+// Parse a boolean-ish string: 1, true, yes or on, in any case. Everything
+// else, including an empty value, leaves the feature off.
+static bool ParseFlag(const std::wstring &text)
+{
+    std::wstring s;
+    for (wchar_t c : text) {
+        if (c == L' ' || c == L'\t' || c == L'"') continue;
+        s += (wchar_t)towlower(c);
+    }
+    return s == L"1" || s == L"true" || s == L"yes" || s == L"on";
+}
+
+// Read a REG_SZ value, or an empty string when it is absent or another type.
+// The size RegQueryValueExW reports includes the terminating null, which the
+// parsers below do not expect, so it is dropped here.
+static std::wstring ReadStringValue(HKEY key, const wchar_t *name)
+{
+    WCHAR buf[64];
+    DWORD size = sizeof(buf);
+    DWORD type = 0;
+    if (RegQueryValueExW(key, name, nullptr, &type, (LPBYTE)buf, &size) !=
+            ERROR_SUCCESS || type != REG_SZ)
+        return std::wstring();
+    size_t length = size / sizeof(WCHAR);
+    while (length > 0 && buf[length - 1] == L'\0')
+        --length;
+    return std::wstring(buf, length);
+}
+
+// Read a switch value: a non-zero REG_DWORD or a string such as "1",
+// "true", "yes" or "on". Absent or malformed values keep it off.
+static bool ReadFlagValue(HKEY key, const wchar_t *name)
+{
+    DWORD type = 0;
+    DWORD size = 0;
+    if (RegQueryValueExW(key, name, nullptr, &type, nullptr, &size) !=
+            ERROR_SUCCESS)
+        return false;
+    if (type == REG_DWORD) {
+        DWORD value = 0;
+        if (RegQueryValueExW(key, name, nullptr, &type, (LPBYTE)&value,
+                             &size) == ERROR_SUCCESS)
+            return value != 0;
+    } else if (type == REG_SZ) {
+        return ParseFlag(ReadStringValue(key, name));
+    }
+    return false;
+}
+
 static ThumbnailOptions LoadThumbnailOptions()
 {
     ThumbnailOptions options;
@@ -144,31 +194,16 @@ static ThumbnailOptions LoadThumbnailOptions()
                       &key) != ERROR_SUCCESS)
         return options;
 
-    auto readString = [key](const wchar_t *name, std::wstring &out) {
-        WCHAR buf[64];
-        DWORD size = sizeof(buf);
-        DWORD type = 0;
-        if (RegQueryValueExW(key, name, nullptr, &type, (LPBYTE)buf, &size) ==
-                ERROR_SUCCESS && type == REG_SZ)
-            out.assign(buf, size / sizeof(WCHAR));
-    };
-
-    std::wstring text;
-    readString(L"Foreground", text);
-    if (ParseColor(text, options.foreground)) {
+    if (ParseColor(ReadStringValue(key, L"Foreground"), options.foreground)) {
         options.colors.foreground = options.foreground.data();
         options.colors.shadeForeground = true;
     }
-    text.clear();
-    readString(L"Background", text);
-    if (ParseColor(text, options.background))
+    if (ParseColor(ReadStringValue(key, L"Background"), options.background))
         options.colors.background = options.background.data();
-    readString(L"Roll", text);
-    ParseAngle(text, options.rotation.x);
-    readString(L"Tilt", text);
-    ParseAngle(text, options.rotation.y);
-    readString(L"Spin", text);
-    ParseAngle(text, options.rotation.z);
+    ParseAngle(ReadStringValue(key, L"Roll"), options.rotation.x);
+    ParseAngle(ReadStringValue(key, L"Tilt"), options.rotation.y);
+    ParseAngle(ReadStringValue(key, L"Spin"), options.rotation.z);
+    options.arrange = ReadFlagValue(key, L"Arrange");
 
     RegCloseKey(key);
     return options;
@@ -406,7 +441,7 @@ public:
             else
                 reader->ReadFromFile(path);
 
-            if (model->HasPackageThumbnailAttachment()) {
+            if (!options.arrange && model->HasPackageThumbnailAttachment()) {
                 Lib3MF::PAttachment thumbnail = model->GetPackageThumbnailAttachment();
                 std::vector<Lib3MF_uint8> buffer;
                 thumbnail->WriteToBuffer(buffer);
@@ -418,7 +453,8 @@ public:
             std::vector<uint8_t> pixels;
             if (!threemf::render::renderToRGBA(model, (int)cx, pixels,
                                                options.colors,
-                                               options.rotation))
+                                               options.rotation,
+                                               options.arrange))
                 return S_FALSE;
             return CreateHBITMAPFromPixels(pixels, cx, phbmp, pdwAlpha);
         } catch (std::exception &) {

@@ -89,13 +89,17 @@ reg add HKCU\Software\3mfthumb /v Background /d 202020 /f
 reg add HKCU\Software\3mfthumb /v Roll /d 0 /f
 reg add HKCU\Software\3mfthumb /v Tilt /d 30 /f
 reg add HKCU\Software\3mfthumb /v Spin /d 90 /f
+reg add HKCU\Software\3mfthumb /v Arrange /d 1 /f
 ```
 
 `Foreground`/`Background` accept `RRGGBB`, `#RRGGBB` or `#RGB`; the angles
-are degrees and take any value. Anything missing or malformed falls back to
-the default look, and files with an embedded preview are still copied
-untouched. Delete the `thumbcache_*.db` files under
-`%LocalAppData%\Microsoft\Windows\Explorer` to see the change.
+are degrees and take any value. `Arrange` is a switch like `-a`: a non-zero
+`REG_DWORD`, or `1`/`true`/`yes`/`on`, packs 3MF build items into a compact
+layout and bypasses the embedded preview (GLB is unaffected). Anything
+missing or malformed falls back to the default look, and otherwise files
+with an embedded preview are still copied untouched. Delete the
+`thumbcache_*.db` files under `%LocalAppData%\Microsoft\Windows\Explorer`
+to see the change.
 
 ## Linux dependencies
 

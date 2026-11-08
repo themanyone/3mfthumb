@@ -87,7 +87,7 @@ undoes it.
 ## Customizing rendered thumbnails
 
 Explorer cannot pass command-line flags to an in-process handler, so the
-same options as `3mfthumb -f -b -x -y -z` are read from per-user values
+same options as `3mfthumb -f -b -x -y -z -a` are read from per-user values
 under `HKEY_CURRENT_USER\Software\3mfthumb` on every thumbnail:
 
 ```
@@ -96,11 +96,14 @@ reg add HKCU\Software\3mfthumb /v Background /d 202020 /f
 reg add HKCU\Software\3mfthumb /v Roll /d 0 /f
 reg add HKCU\Software\3mfthumb /v Tilt /d 30 /f
 reg add HKCU\Software\3mfthumb /v Spin /d 35 /f
+reg add HKCU\Software\3mfthumb /v Arrange /d 1 /f
 ```
 
-Colours accept `RRGGBB`, `#RRGGBB` or `#RGB`; angles are degrees. Missing or
-malformed values fall back to the built-in look. The values never touch 3MF
-or GLB files that carry their own embedded preview, which is copied
-unchanged, matching the CLI. Explorer caches thumbnails, so clear the
-`thumbcache_*.db` files under
-`%LocalAppData%\Microsoft\Windows\Explorer` to see the change.
+Colours accept `RRGGBB`, `#RRGGBB` or `#RGB`; angles are degrees. `Arrange`
+is a switch: a non-zero `REG_DWORD`, or a string such as `1`, `true`, `yes`
+or `on` packs the build items the way `-a` does and bypasses a 3MF file's
+embedded preview; it has no effect on GLB. Missing or malformed values fall
+back to the built-in look. Otherwise the values never touch 3MF or GLB files
+that carry their own embedded preview, which is copied unchanged, matching
+the CLI. Explorer caches thumbnails, so clear the `thumbcache_*.db` files
+under `%LocalAppData%\Microsoft\Windows\Explorer` to see the change.

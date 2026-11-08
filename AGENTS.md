@@ -76,9 +76,11 @@ one mesh renderer, `win-shellext/renderer.h`.
   -lwindowscodecs`. Register with `regsvr32` (per-user, HKCU only).
   `ThumbnailProvider.cpp` cannot receive CLI flags, so `LoadThumbnailOptions()`
   reads `HKCU\Software\3mfthumb` string values `Foreground`, `Background`,
-  `Roll`, `Tilt`, `Spin` on every `GetThumbnail` and passes them as
-  `RenderColors`/`ViewRotation`; absent or malformed values keep the default
-  look, and embedded previews are still copied verbatim.
+  `Roll`, `Tilt`, `Spin` and `Arrange` on every `GetThumbnail` and passes them
+  as `RenderColors`/`ViewRotation`/`arrange`; absent or malformed values keep
+  the default look, `Arrange` also accepts a non-zero `REG_DWORD` (or
+  `1`/`true`/`yes`/`on`), it bypasses 3MF embedded previews like `-a` and has
+  no effect on GLB, and otherwise embedded previews are still copied verbatim.
 - **CMake alternative (cross-platform only)**: the root `CMakeLists.txt` is a
   unified Linux/Windows build, tracked in git. the Makefile is
   the primary build. Cross-build: `cmake -S . -B build-win
