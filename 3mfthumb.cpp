@@ -268,12 +268,12 @@ bool splitOption(const std::string &argument, std::string &name,
 }
 
 void printUsage(std::ostream &out) {
-  out << "Usage: 3mfthumb [-r] [--arrange] [-c] [-s N] [-x DEG] [-y DEG] "
+  out << "Usage: 3mfthumb [-r] [-a] [-c] [-s N] [-x DEG] [-y DEG] "
          "[-z DEG] [-f RRGGBB] [-b RRGGBB] "
          "<file.3mf|file.stl|file.glb> [output.png]\n"
          "  -r, --render      ignore the embedded preview and render the"
          " meshes\n"
-         "      --arrange     tightly pack 3MF build items by projected"
+         "  -a, --arrange     tightly pack 3MF build items by projected"
          " silhouette\n"
          "  -c, --cache       also store the thumbnail in the shared cache, as"
          " KDE expects\n"
@@ -327,7 +327,7 @@ int main(int argc, char **argv) {
     };
     if (option == "-r" || option == "--render") {
       forceRender = true;
-    } else if (option == "--arrange") {
+    } else if (option == "-a" || option == "--arrange") {
       arrange = true;
     } else if (option == "-c" || option == "--cache") {
       useCommonThumbnailCache = true;

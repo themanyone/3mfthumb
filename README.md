@@ -28,7 +28,7 @@ Try one of the Windows & Linux installers in [Latest Releases](https://github.co
 **1.2.4**
 
 - Fix shading. See [Customize](#customize) below.
-- `--arrange` tightly packs projected 3MF parts, placing them into empty
+- `-a` / `--arrange` tightly packs projected 3MF parts, placing them into empty
   regions inside other parts' bounds; it bypasses embedded previews.
 - Option values may be written joined to the flag (`-z90`, `-s128`,
   `--spin=90`), as well as separated by a space.
@@ -67,7 +67,7 @@ Obsessive tweakers can apply preferences to generated thumbnails! (The ones that
 
 `./3mfthumb -z 90 -f ff0000 ./lib3mf_sdk/Examples/Files/Helix.stl out.png && timg out.png`
 
-For 3MF files with multiple build items, add `--arrange` to pack their projected silhouettes into a compact layout rather than showing saved build-plate positions. This renders the meshes even when the file contains an embedded preview; it does not apply to STL or GLB files. The camera fit follows the main packed silhouette, so tiny isolated details at the extreme edges may be cropped.
+For 3MF files with multiple build items, add `-a` / `--arrange` to pack their projected silhouettes into a compact layout rather than showing saved build-plate positions. This renders the meshes even when the file contains an embedded preview; it does not apply to STL or GLB files. The camera fit follows the main packed silhouette, so tiny isolated details at the extreme edges may be cropped.
 
 See `./3mfthumb -h` for help, experiment, edit `3mf.thumbnailer`
 to launch with your preferred flags.
