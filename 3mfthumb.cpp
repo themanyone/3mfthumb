@@ -82,9 +82,11 @@ bool renderThumbnail(Lib3MF::PModel model, const std::string &outputFilename,
                      const threemf::render::RenderColors &colors =
                          threemf::render::RenderColors(),
                      const threemf::render::ViewRotation &rotation =
-                         threemf::render::ViewRotation()) {
+                         threemf::render::ViewRotation(),
+                     bool arrange = false) {
   std::vector<uint8_t> pixels;
-  if (!threemf::render::renderToRGBA(model, size, pixels, colors, rotation))
+  if (!threemf::render::renderToRGBA(model, size, pixels, colors, rotation,
+                                     arrange))
     return false;
   return writePixels(outputFilename, size, pixels);
 }
@@ -266,11 +268,13 @@ bool splitOption(const std::string &argument, std::string &name,
 }
 
 void printUsage(std::ostream &out) {
-  out << "Usage: 3mfthumb [-r] [-c] [-s N] [-x DEG] [-y DEG] [-z DEG] "
-         "[-f RRGGBB] [-b RRGGBB] <file.3mf|file.stl|file.glb> "
-         "[output.png]\n"
+  out << "Usage: 3mfthumb [-r] [--arrange] [-c] [-s N] [-x DEG] [-y DEG] "
+         "[-z DEG] [-f RRGGBB] [-b RRGGBB] "
+         "<file.3mf|file.stl|file.glb> [output.png]\n"
          "  -r, --render      ignore the embedded preview and render the"
          " meshes\n"
+         "      --arrange     tightly pack 3MF build items by projected"
+         " silhouette\n"
          "  -c, --cache       also store the thumbnail in the shared cache, as"
          " KDE expects\n"
          "  -s, --size        render edge length in pixels (default 256,"
@@ -293,6 +297,7 @@ void printUsage(std::ostream &out) {
 
 int main(int argc, char **argv) {
   bool forceRender = false;
+  bool arrange = false;
   bool useCommonThumbnailCache = false;
   int size = 256;
   threemf::render::ViewRotation rotation;
@@ -322,6 +327,8 @@ int main(int argc, char **argv) {
     };
     if (option == "-r" || option == "--render") {
       forceRender = true;
+    } else if (option == "--arrange") {
+      arrange = true;
     } else if (option == "-c" || option == "--cache") {
       useCommonThumbnailCache = true;
     } else if (option == "-s" || option == "--size") {
@@ -522,7 +529,7 @@ int main(int argc, char **argv) {
     reader->ReadFromFile(filename);
     // Get thumbnail attachment
     Lib3MF::PAttachment thumbnail;
-    if (!forceRender && model->HasPackageThumbnailAttachment()) {
+    if (!forceRender && !arrange && model->HasPackageThumbnailAttachment()) {
       thumbnail = model->GetPackageThumbnailAttachment();
       #ifdef WIN32
       if (thumbnailFilename.empty()) {
@@ -540,7 +547,8 @@ int main(int argc, char **argv) {
     } else if (!writeFilename.empty()) {
       // No embedded preview (or -r): render the build meshes with Cairo.
       try {
-        if (renderThumbnail(model, writeFilename, size, colors, rotation))
+        if (renderThumbnail(model, writeFilename, size, colors, rotation,
+                            arrange))
           copyToCache();
       } catch (std::exception &e) {
         std::cerr << "3mfthumb: render failed: " << e.what() << std::endl;
